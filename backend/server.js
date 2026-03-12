@@ -190,6 +190,12 @@ app.post("/send-email", async (req, res) => {
   }
 
 });
+/* -----------------------------
+   GET / route
+----------------------------- */
+app.get("/", (req, res) => {
+  res.send("Visit Parliament Form backend is running!");
+});
 
 /* -----------------------------
    Start Server
