@@ -197,6 +197,14 @@ app.get("/", (req, res) => {
   res.send("Visit Parliament Form backend is running!");
 });
 
+const path = require("path");
+
+// Serve React build
+app.use(express.static(path.join(__dirname, "../build")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../build/index.html"));
+});
 /* -----------------------------
    Start Server
 ----------------------------- */
