@@ -28,11 +28,11 @@ const transporter = nodemailer.createTransport({
 
 /* Verify transporter connection */
 
-transporter.verify(function (error, success) {
+transporter.verify((error) => {
   if (error) {
     console.error("Email server error:", error);
   } else {
-    console.log("Email server ready to send messages");
+    console.log("Email server ready");
   }
 });
 
@@ -40,19 +40,9 @@ transporter.verify(function (error, success) {
    API ROUTES
 ----------------------------- */
 
-/* Health check route */
-
-app.get("/", (req, res) => {
-  res.send("Visit Parliament Form backend is running!");
-});
-
-/* Send Email Route */
-
 app.post("/send-email", async (req, res) => {
 
   const { institution, name, reason, date, visitors, email, phone } = req.body;
-
-  /* Validation */
 
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
     return res.status(400).json({
@@ -63,9 +53,7 @@ app.post("/send-email", async (req, res) => {
 
   try {
 
-    /* -----------------------------
-       Admin Notification Email
-    ----------------------------- */
+    /* Admin Email */
 
     const adminMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
@@ -74,56 +62,56 @@ app.post("/send-email", async (req, res) => {
       subject: "📩 New Visit Request",
 
       html: `
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
+      <table width="100%" style="font-family:Arial;background:#f2f2f2;padding:20px;">
         <tr>
           <td align="center">
 
-            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:2px solid #0b6b3a;border-radius:6px;overflow:hidden;">
+            <table width="600" style="background:#fff;border:2px solid #0b6b3a;border-radius:6px;overflow:hidden;">
 
               <tr>
-                <td style="background:#0b6b3a;color:#ffffff;text-align:center;padding:20px;font-size:22px;font-weight:bold;">
+                <td style="background:#0b6b3a;color:#fff;text-align:center;padding:20px;font-size:22px;">
                   New Visit Request
                 </td>
               </tr>
 
               <tr>
-                <td style="padding:20px;">
+                <td style="padding:20px">
 
-                  <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse:collapse;">
+                  <table width="100%" cellpadding="10" style="border-collapse:collapse">
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Institution</td>
-                      <td style="border:1px solid #ddd;">${institution}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Institution</td>
+                      <td style="border:1px solid #ddd">${institution}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Name</td>
-                      <td style="border:1px solid #ddd;">${name}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Name</td>
+                      <td style="border:1px solid #ddd">${name}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Reason</td>
-                      <td style="border:1px solid #ddd;">${reason}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Reason</td>
+                      <td style="border:1px solid #ddd">${reason}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Visit Date</td>
-                      <td style="border:1px solid #ddd;">${date}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Visit Date</td>
+                      <td style="border:1px solid #ddd">${date}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Visitors</td>
-                      <td style="border:1px solid #ddd;">${visitors}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Visitors</td>
+                      <td style="border:1px solid #ddd">${visitors}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Email</td>
-                      <td style="border:1px solid #ddd;">${email}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Email</td>
+                      <td style="border:1px solid #ddd">${email}</td>
                     </tr>
 
                     <tr>
-                      <td style="border:1px solid #ddd;font-weight:bold;">Phone</td>
-                      <td style="border:1px solid #ddd;">${phone}</td>
+                      <td style="border:1px solid #ddd;font-weight:bold">Phone</td>
+                      <td style="border:1px solid #ddd">${phone}</td>
                     </tr>
 
                   </table>
@@ -132,8 +120,8 @@ app.post("/send-email", async (req, res) => {
               </tr>
 
               <tr>
-                <td style="background:#f4f4f4;text-align:center;padding:12px;font-size:12px;color:#666;">
-                  Automated message from the Visit Request System
+                <td style="background:#f4f4f4;text-align:center;padding:12px;font-size:12px;color:#666">
+                  Automated message from Visit Request System
                 </td>
               </tr>
 
@@ -145,9 +133,7 @@ app.post("/send-email", async (req, res) => {
       `
     };
 
-    /* -----------------------------
-       Visitor Confirmation Email
-    ----------------------------- */
+    /* Visitor Confirmation */
 
     const visitorMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
@@ -155,33 +141,26 @@ app.post("/send-email", async (req, res) => {
       subject: "Visit Request Received",
 
       html: `
-      <div style="font-family:Arial;padding:20px;">
-        <h2 style="color:#0b6b3a;">Visit Request Received</h2>
+      <div style="font-family:Arial;padding:20px">
+        <h2 style="color:#0b6b3a">Visit Request Received</h2>
 
         <p>Hello ${name},</p>
 
-        <p>
-        Thank you for submitting a visit request to our organization.
-        Your request has been received and our team will review it shortly.
-        </p>
+        <p>Your visit request has been successfully submitted.</p>
 
-        <p><strong>Visit Date:</strong> ${date}</p>
         <p><strong>Institution:</strong> ${institution}</p>
+        <p><strong>Visit Date:</strong> ${date}</p>
 
-        <p>
-        We will contact you if further information is required.
-        </p>
+        <p>Our team will review your request and contact you if needed.</p>
 
         <br>
 
-        <p style="color:#777;font-size:12px;">
+        <p style="font-size:12px;color:#777">
         This is an automated confirmation email.
         </p>
       </div>
       `
     };
-
-    /* Send Emails */
 
     await transporter.sendMail(adminMail);
     await transporter.sendMail(visitorMail);
@@ -205,13 +184,17 @@ app.post("/send-email", async (req, res) => {
 });
 
 /* -----------------------------
-   Serve React Frontend
+   Serve React Build
 ----------------------------- */
 
-app.use(express.static(path.join(__dirname, "build")));
+const buildPath = path.join(__dirname, "build");
+
+app.use(express.static(buildPath));
+
+/* React routes fallback */
 
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "build", "index.html"));
+  res.sendFile(path.join(buildPath, "index.html"));
 });
 
 /* -----------------------------
