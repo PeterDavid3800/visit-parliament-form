@@ -43,9 +43,7 @@ app.post("/send-email", async (req, res) => {
   }
 
   try {
-    /* -----------------------------
-       Admin Notification Email
-    ----------------------------- */
+
     const adminMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
@@ -107,9 +105,6 @@ app.post("/send-email", async (req, res) => {
       `
     };
 
-    /* -----------------------------
-       Visitor Confirmation Email
-    ----------------------------- */
     const visitorMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -139,9 +134,16 @@ app.post("/send-email", async (req, res) => {
     await transporter.sendMail(visitorMail);
 
     res.status(200).json({ success: true, message: "Emails sent successfully" });
+
   } catch (error) {
+
     console.error("Email error:", error);
-    res.status(500).json({ success: false, message: "Failed to send email" });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to send email"
+    });
+
   }
 });
 
@@ -153,19 +155,24 @@ const buildPath = path.join(__dirname, "../frontend/build");
 
 app.use(express.static(buildPath));
 
+/* Serve React App */
 
-/* -----------------------------
-   React Catch-All Route
------------------------------ */
-// This avoids the "* path" error and preserves API routes
-app.get(/^\/(?!send-email).*$/, (req, res) => {
+app.get("/", (req, res) => {
+  res.sendFile(path.join(buildPath, "index.html"));
+});
+
+/* Catch all other routes */
+
+app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
 /* -----------------------------
    Start Server
 ----------------------------- */
+
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
