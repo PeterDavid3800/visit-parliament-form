@@ -3,8 +3,13 @@ require("dotenv").config();
 const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
+
+/* -----------------------------
+   Middleware
+----------------------------- */
 
 app.use(cors());
 app.use(express.json());
@@ -23,17 +28,25 @@ const transporter = nodemailer.createTransport({
 
 /* Verify transporter connection */
 
-transporter.verify((error) => {
+transporter.verify(function (error, success) {
   if (error) {
     console.error("Email server error:", error);
   } else {
-    console.log("Email server ready");
+    console.log("Email server ready to send messages");
   }
 });
 
 /* -----------------------------
-   Send Email Route
+   API ROUTES
 ----------------------------- */
+
+/* Health check route */
+
+app.get("/", (req, res) => {
+  res.send("Visit Parliament Form backend is running!");
+});
+
+/* Send Email Route */
 
 app.post("/send-email", async (req, res) => {
 
@@ -168,7 +181,7 @@ app.post("/send-email", async (req, res) => {
       `
     };
 
-    /* Send both emails */
+    /* Send Emails */
 
     await transporter.sendMail(adminMail);
     await transporter.sendMail(visitorMail);
@@ -190,21 +203,17 @@ app.post("/send-email", async (req, res) => {
   }
 
 });
+
 /* -----------------------------
-   GET / route
+   Serve React Frontend
 ----------------------------- */
-app.get("/", (req, res) => {
-  res.send("Visit Parliament Form backend is running!");
-});
 
-const path = require("path");
-
-// Serve React build
-app.use(express.static(path.join(__dirname, "../build")));
+app.use(express.static(path.join(__dirname, "build")));
 
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../build/index.html"));
+  res.sendFile(path.join(__dirname, "build", "index.html"));
 });
+
 /* -----------------------------
    Start Server
 ----------------------------- */
