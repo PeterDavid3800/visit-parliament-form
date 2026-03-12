@@ -148,8 +148,12 @@ app.post("/send-email", async (req, res) => {
 /* -----------------------------
    Serve React Build
 ----------------------------- */
-const buildPath = path.join(__dirname, "../build");
+const path = require("path");
+
+const buildPath = path.join(__dirname, "../frontend/build");
+
 app.use(express.static(buildPath));
+
 
 /* -----------------------------
    React Catch-All Route
