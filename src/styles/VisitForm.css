@@ -1,0 +1,57 @@
+body{
+font-family: Arial, sans-serif;
+background:#f4f4f4;
+margin:0;
+padding:0;
+}
+
+.form-container{
+max-width:600px;
+margin:60px auto;
+background:white;
+padding:40px;
+border-radius:10px;
+box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+
+.title{
+text-align:center;
+color:#0b6b3a;
+margin-bottom:30px;
+}
+
+.visit-form{
+display:flex;
+flex-direction:column;
+gap:15px;
+}
+
+.visit-form input,
+.visit-form select{
+padding:12px;
+border-radius:6px;
+border:1px solid #ccc;
+font-size:16px;
+}
+
+.visit-form input:focus,
+.visit-form select:focus{
+outline:none;
+border-color:#0b6b3a;
+}
+
+.visit-form button{
+background:#0b6b3a;
+color:white;
+padding:14px;
+border:none;
+border-radius:6px;
+font-size:16px;
+cursor:pointer;
+transition:0.3s;
+}
+
+.visit-form button:hover{
+background:#094d2a;
+}
+
