@@ -148,7 +148,6 @@ app.post("/send-email", async (req, res) => {
 /* -----------------------------
    Serve React Build
 ----------------------------- */
-const path = require("path");
 
 const buildPath = path.join(__dirname, "../frontend/build");
 
