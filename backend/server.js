@@ -32,9 +32,7 @@ transporter.verify((error) => {
 /* -----------------------------
    API ROUTES
 ----------------------------- */
-app.post("/api/send-email", async (req, res) => {
-  console.log("Form submission received:", req.body);
-
+app.post("/send-email", async (req, res) => {
   const { institution, name, reason, date, visitors, email, phone } = req.body;
 
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
@@ -45,6 +43,7 @@ app.post("/api/send-email", async (req, res) => {
   }
 
   try {
+
     const adminMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
@@ -134,24 +133,35 @@ app.post("/api/send-email", async (req, res) => {
     await transporter.sendMail(adminMail);
     await transporter.sendMail(visitorMail);
 
-    console.log("Emails sent successfully");
-
     res.status(200).json({ success: true, message: "Emails sent successfully" });
+
   } catch (error) {
+
     console.error("Email error:", error);
-    res.status(500).json({ success: false, message: "Failed to send email" });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to send email"
+    });
+
   }
 });
 
 /* -----------------------------
    Serve React Build
 ----------------------------- */
+
 const buildPath = path.join(__dirname, "../frontend/build");
+
 app.use(express.static(buildPath));
+
+/* Serve React App */
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
+
+/* Catch all other routes */
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
@@ -160,9 +170,9 @@ app.get("*", (req, res) => {
 /* -----------------------------
    Start Server
 ----------------------------- */
+
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-//end of the code
