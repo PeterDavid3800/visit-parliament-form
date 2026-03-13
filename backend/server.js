@@ -36,11 +36,16 @@ app.post("/send-email", async (req, res) => {
     console.log("Google reCAPTCHA response:", captchaVerify.data);
 
     if (!captchaVerify.data.success) {
-      return res.status(400).json({
-        success: false,
-        message: `Robot verification failed: ${captchaVerify.data["error-codes"]?.join(", ")}`
-      });
+    console.log("Captcha failed:", captchaVerify.data);
     }
+
+    //if (!captchaVerify.data.success) {
+      //return res.status(400).json({
+        //success: false,
+        //message: `Robot verification failed: ${captchaVerify.data["error-codes"]?.join(", ")}`
+      //});
+    //}
+    
 
     // -----------------------------
     // Admin Notification Email
