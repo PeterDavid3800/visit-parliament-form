@@ -1,7 +1,6 @@
 require("dotenv").config();
 
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
 const path = require("path");
 const { Resend } = require("resend");
@@ -18,21 +17,9 @@ app.use(cors({
 app.use(express.json());
 
 /* -----------------------------
-   Email Transporter
+   Email Client
 ----------------------------- */
 const resend = new Resend(process.env.RESEND_API_KEY);
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-transporter.verify((error) => {
-  if (error) console.error("Email server error:", error);
-  else console.log("Email server ready");
-});
 
 /* -----------------------------
    API ROUTES
@@ -48,11 +35,13 @@ app.post("/send-email", async (req, res) => {
   }
 
   try {
-
-    const adminMail = {
-      from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      replyTo: email,
+    /* -----------------------------
+       Admin Notification Email
+    ----------------------------- */
+    await resend.emails.send({
+      from: "you@resend.io", // your verified sender in Resend
+      to: process.env.ADMIN_EMAIL, // set this in Render env
+      reply_to: email,
       subject: "📩 New Visit Request",
       html: `
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
@@ -108,10 +97,13 @@ app.post("/send-email", async (req, res) => {
         </tr>
       </table>
       `
-    };
+    });
 
-    const visitorMail = {
-      from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
+    /* -----------------------------
+       Visitor Confirmation Email
+    ----------------------------- */
+    await resend.emails.send({
+      from: "you@resend.io", // your verified sender in Resend
       to: email,
       subject: "Visit Request Received",
       html: `
@@ -133,41 +125,31 @@ app.post("/send-email", async (req, res) => {
         </p>
       </div>
       `
-    };
-
-    await transporter.sendMail(adminMail);
-    await transporter.sendMail(visitorMail);
+    });
 
     res.status(200).json({ success: true, message: "Emails sent successfully" });
 
   } catch (error) {
-
     console.error("Email error:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to send email"
     });
-
   }
 });
 
 /* -----------------------------
    Serve React Build
 ----------------------------- */
-
 const buildPath = path.join(__dirname, "../frontend/build");
-
 app.use(express.static(buildPath));
 
 /* Serve React App */
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
 /* Catch all other routes */
-
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
@@ -175,9 +157,7 @@ app.get("*", (req, res) => {
 /* -----------------------------
    Start Server
 ----------------------------- */
-
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
