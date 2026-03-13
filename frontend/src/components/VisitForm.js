@@ -25,7 +25,7 @@ function VisitForm() {
     e.preventDefault();
 
     try {
-      const response = await fetch("/api/send-email", {
+      const response = await fetch("https://your-backend-url./send-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
