@@ -10,7 +10,9 @@ const app = express();
 /* -----------------------------
    Middleware
 ----------------------------- */
-app.use(cors());
+app.use(cors({
+  origin: "https://visit-parliament-form.onrender.com/",
+}));
 app.use(express.json());
 
 /* -----------------------------

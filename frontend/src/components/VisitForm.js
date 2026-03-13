@@ -28,7 +28,7 @@ function VisitForm() {
     e.preventDefault();
 
     try {
-      const response = await fetch(`${API_URL}/api/send-email`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/send-email`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
