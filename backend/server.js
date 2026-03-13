@@ -32,7 +32,9 @@ transporter.verify((error) => {
 /* -----------------------------
    API ROUTES
 ----------------------------- */
-app.post("/send-email", async (req, res) => {
+app.post("/api/send-email", async (req, res) => {
+  console.log("Form submission received:", req.body);
+
   const { institution, name, reason, date, visitors, email, phone } = req.body;
 
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
@@ -132,8 +134,9 @@ app.post("/send-email", async (req, res) => {
     await transporter.sendMail(adminMail);
     await transporter.sendMail(visitorMail);
 
-    res.status(200).json({ success: true, message: "Emails sent successfully" });
+    console.log("Emails sent successfully");
 
+    res.status(200).json({ success: true, message: "Emails sent successfully" });
   } catch (error) {
     console.error("Email error:", error);
     res.status(500).json({ success: false, message: "Failed to send email" });
@@ -146,6 +149,10 @@ app.post("/send-email", async (req, res) => {
 const buildPath = path.join(__dirname, "../frontend/build");
 app.use(express.static(buildPath));
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(buildPath, "index.html"));
+});
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
@@ -154,4 +161,8 @@ app.get("*", (req, res) => {
    Start Server
 ----------------------------- */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+//end of the code
