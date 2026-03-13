@@ -55,3 +55,20 @@ transition:0.3s;
 background:#094d2a;
 }
 
+.status-message{
+  margin-bottom:20px;
+  padding:12px;
+  border-radius:6px;
+  font-size:16px;
+  text-align:center;
+}
+
+.status-message.success{
+  color:#0f9d58;
+  font-weight:bold;
+}
+
+.status-message.error{
+  color:#d93025;
+  font-weight:bold;
+}

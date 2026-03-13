@@ -9,6 +9,7 @@ function VisitForm() {
     institution: "",
     name: "",
     reason: "",
+    otherReason: "",
     date: "",
     visitors: "",
     email: "",
@@ -17,6 +18,7 @@ function VisitForm() {
 
   const [captchaToken, setCaptchaToken] = useState(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -34,9 +36,13 @@ function VisitForm() {
 
     if (!captchaToken) {
       setStatusMessage("❌ Please verify that you are not a robot.");
+      setStatusType("error");
       setTimeout(() => setStatusMessage(""), 5000);
       return;
     }
+
+    const reasonToSend =
+      formData.reason === "Other" ? formData.otherReason : formData.reason;
 
     try {
       const response = await fetch("/send-email", {
@@ -46,6 +52,7 @@ function VisitForm() {
         },
         body: JSON.stringify({
           ...formData,
+          reason: reasonToSend,
           captchaToken
         })
       });
@@ -54,12 +61,13 @@ function VisitForm() {
 
       if (response.ok && data.success) {
         setStatusMessage("✔ Request submitted successfully!");
+        setStatusType("success");
 
-        // Reset form
         setFormData({
           institution: "",
           name: "",
           reason: "",
+          otherReason: "",
           date: "",
           visitors: "",
           email: "",
@@ -68,15 +76,15 @@ function VisitForm() {
 
         setCaptchaToken(null);
         recaptchaRef.current.reset();
-
       } else {
-        // Show exact error from backend
         setStatusMessage(`❌ ${data.message || "Failed to submit request."}`);
+        setStatusType("error");
       }
 
     } catch (error) {
       console.error("Error:", error);
       setStatusMessage("❌ An error occurred while submitting the form.");
+      setStatusType("error");
     }
 
     setTimeout(() => setStatusMessage(""), 5000);
@@ -96,7 +104,11 @@ function VisitForm() {
         <p>To book a visit to Parliament, kindly fill in your details below.</p>
       </div>
 
-      {statusMessage && <div className="status-message">{statusMessage}</div>}
+      {statusMessage && (
+        <div className={`status-message ${statusType}`}>
+          {statusMessage}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="visit-form">
 
@@ -122,12 +134,30 @@ function VisitForm() {
           name="reason"
           value={formData.reason}
           onChange={handleChange}
+          required
         >
           <option value="">Reason for Visit</option>
           <option>Educational Tour</option>
           <option>Official Meeting</option>
           <option>Research</option>
+          <option>Parliamentary Proceedings Observation</option>
+          <option>Media Coverage</option>
+          <option>Internship or Academic Program</option>
+          <option>Government Delegation Visit</option>
+          <option>School / University Trip</option>
+          <option>Other</option>
         </select>
+
+        {formData.reason === "Other" && (
+          <input
+            type="text"
+            name="otherReason"
+            placeholder="Please specify your reason"
+            value={formData.otherReason}
+            onChange={handleChange}
+            required
+          />
+        )}
 
         <input
           type="date"
