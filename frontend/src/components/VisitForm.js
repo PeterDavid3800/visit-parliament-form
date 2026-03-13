@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "../styles/VisitForm.css";
+import ReCAPTCHA from "react-google-recaptcha";
 
 function VisitForm() {
+  const recaptchaRef = useRef();
+
   const [formData, setFormData] = useState({
     institution: "",
     name: "",
@@ -12,7 +15,8 @@ function VisitForm() {
     phone: ""
   });
 
-  const [statusMessage, setStatusMessage] = useState(""); // For success/error message
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [statusMessage, setStatusMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -21,8 +25,18 @@ function VisitForm() {
     });
   };
 
+  const handleCaptchaChange = (token) => {
+    setCaptchaToken(token);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!captchaToken) {
+      setStatusMessage("❌ Please verify that you are not a a robot.");
+      setTimeout(() => setStatusMessage(""), 5000);
+      return;
+    }
 
     try {
       const response = await fetch("/send-email", {
@@ -30,12 +44,15 @@ function VisitForm() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          captchaToken
+        })
       });
 
       if (response.ok) {
-        setStatusMessage("✔ Request submitted successfully!"); // Show success message
-        // Reset the form fields
+        setStatusMessage("✔ Request submitted successfully!");
+
         setFormData({
           institution: "",
           name: "",
@@ -45,15 +62,20 @@ function VisitForm() {
           email: "",
           phone: ""
         });
+
+        setCaptchaToken(null);
+        recaptchaRef.current.reset();
+
       } else {
-        setStatusMessage("❌ Failed to submit request.");
+        const data = await response.json();
+        setStatusMessage(`❌ ${data.message || "Failed to submit request."}`);
       }
+
     } catch (error) {
       console.error("Error:", error);
       setStatusMessage("❌ An error occurred while submitting the form.");
     }
 
-    // Clear message after 5 seconds
     setTimeout(() => setStatusMessage(""), 5000);
   };
 
@@ -136,6 +158,13 @@ function VisitForm() {
           placeholder="Phone Number"
           value={formData.phone}
           onChange={handleChange}
+        />
+
+        {/* reCAPTCHA */}
+        <ReCAPTCHA
+          ref={recaptchaRef}
+          sitekey="6LeOTYksAAAAAE5IeQBAdniPBXJn3Vgluqmh9Qx6"
+          onChange={handleCaptchaChange}
         />
 
         <button type="submit">Submit Request</button>
