@@ -83,8 +83,8 @@ app.post("/send-email", async (req, res) => {
        Admin Notification Email
     ----------------------------- */
     await resend.emails.send({
-      from: "you@resend.io",
-      to: process.env.ADMIN_EMAIL,
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
       reply_to: email,
       subject: "📩 New Visit Request",
       html: `
@@ -147,7 +147,7 @@ app.post("/send-email", async (req, res) => {
        Visitor Confirmation Email
     ----------------------------- */
     await resend.emails.send({
-      from: "you@resend.io",
+      from: process.env.EMAIL_USER,
       to: email,
       subject: "Visit Request Received",
       html: `
