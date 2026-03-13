@@ -14,15 +14,15 @@ function VisitForm() {
 
   const [statusMessage, setStatusMessage] = useState("");
 
-  const API_URL = ""; // Same origin on Render
-
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      const response = await fetch(`${API_URL}/send-email`, {
+      const response = await fetch("/send-email", { // local fetch
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
@@ -30,10 +30,17 @@ function VisitForm() {
 
       if (response.ok) {
         setStatusMessage("✔ Request submitted successfully!");
-        setFormData({ institution: "", name: "", reason: "", date: "", visitors: "", email: "", phone: "" });
+        setFormData({
+          institution: "",
+          name: "",
+          reason: "",
+          date: "",
+          visitors: "",
+          email: "",
+          phone: ""
+        });
       } else {
-        const data = await response.json();
-        setStatusMessage(`❌ Failed: ${data.message}`);
+        setStatusMessage("❌ Failed to submit request.");
       }
     } catch (error) {
       console.error("Error:", error);
@@ -49,8 +56,8 @@ function VisitForm() {
         <h1 className="title">Visit Request Form</h1>
         <h2>How to get to Parliament Building</h2>
         <p>Parliament Building is located at <strong>Parliament Road, Nairobi</strong>.</p>
-        <p>It is easy to get to Parliament Building by car, public transport, or by foot. From the City Centre, take <strong>Harambee Avenue</strong> to Parliament Road.</p>
-        <p>To book a visit to Parliament, kindly fill in your details below.</p>
+        <p>It is easy to get there by car, public transport, or on foot. From City Centre, take <strong>Harambee Avenue</strong> to Parliament Road.</p>
+        <p>To book a visit, fill in your details below.</p>
       </div>
 
       {statusMessage && <div className="status-message">{statusMessage}</div>}
