@@ -25,14 +25,20 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.verify((error) => {
-  if (error) console.error("Email server error:", error);
-  else console.log("Email server ready");
+  if (error) {
+    console.error("Email server error:", error);
+  } else {
+    console.log("Email server ready");
+  }
 });
 
 /* -----------------------------
    API ROUTES
 ----------------------------- */
-app.post("/send-email", async (req, res) => {
+app.post("/api/send-email", async (req, res) => {
+
+  console.log("Form submission received:", req.body);
+
   const { institution, name, reason, date, visitors, email, phone } = req.body;
 
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
@@ -133,6 +139,8 @@ app.post("/send-email", async (req, res) => {
     await transporter.sendMail(adminMail);
     await transporter.sendMail(visitorMail);
 
+    console.log("Emails sent successfully");
+
     res.status(200).json({ success: true, message: "Emails sent successfully" });
 
   } catch (error) {
@@ -154,8 +162,6 @@ app.post("/send-email", async (req, res) => {
 const buildPath = path.join(__dirname, "../frontend/build");
 
 app.use(express.static(buildPath));
-
-/* Serve React App */
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));

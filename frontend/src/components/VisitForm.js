@@ -25,7 +25,7 @@ function VisitForm() {
     e.preventDefault();
 
     try {
-      const response = await fetch("https://visit-parliament-form.onrender.com/send-email", {
+      const response = await fetch("/api/send-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
