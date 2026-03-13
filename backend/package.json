@@ -1,19 +1,15 @@
 {
-  "name": "backend",
+  "name": "visit-parliament-backend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "heroku-postbuild": "cd frontend && npm install && npm run build"
   },
-  "description": "Visit Parliament email backend",
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "body-parser": "^2.2.2",
-    "cors": "^2.8.6",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.22.1",
-    "nodemailer": "^6.10.1"
-  },
-  "keywords": []
+    "express": "^4.19.2",
+    "nodemailer": "^6.9.13"
+  }
 }
