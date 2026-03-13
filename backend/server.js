@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const axios = require("axios");
 const { Resend } = require("resend");
 
 const app = express();
@@ -14,6 +15,7 @@ app.use(cors({
   origin: "*",
   methods: ["GET", "POST"]
 }));
+
 app.use(express.json());
 
 /* -----------------------------
@@ -25,8 +27,21 @@ const resend = new Resend(process.env.RESEND_API_KEY);
    API ROUTES
 ----------------------------- */
 app.post("/send-email", async (req, res) => {
-  const { institution, name, reason, date, visitors, email, phone } = req.body;
 
+  const {
+    institution,
+    name,
+    reason,
+    date,
+    visitors,
+    email,
+    phone,
+    captchaToken
+  } = req.body;
+
+  /* -----------------------------
+     Validate Fields
+  ----------------------------- */
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
     return res.status(400).json({
       success: false,
@@ -34,13 +49,42 @@ app.post("/send-email", async (req, res) => {
     });
   }
 
+  /* -----------------------------
+     Verify reCAPTCHA
+  ----------------------------- */
+  if (!captchaToken) {
+    return res.status(400).json({
+      success: false,
+      message: "Captcha verification required"
+    });
+  }
+
   try {
+
+    const captchaVerify = await axios.post(
+      "https://www.google.com/recaptcha/api/siteverify",
+      null,
+      {
+        params: {
+          secret: process.env.RECAPTCHA_SECRET,
+          response: captchaToken
+        }
+      }
+    );
+
+    if (!captchaVerify.data.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Robot verification failed"
+      });
+    }
+
     /* -----------------------------
        Admin Notification Email
     ----------------------------- */
     await resend.emails.send({
-      from: "you@resend.io", // your verified sender in Resend
-      to: process.env.ADMIN_EMAIL, // set this in Render env
+      from: "you@resend.io",
+      to: process.env.ADMIN_EMAIL,
       reply_to: email,
       subject: "📩 New Visit Request",
       html: `
@@ -103,7 +147,7 @@ app.post("/send-email", async (req, res) => {
        Visitor Confirmation Email
     ----------------------------- */
     await resend.emails.send({
-      from: "you@resend.io", // your verified sender in Resend
+      from: "you@resend.io",
       to: email,
       subject: "Visit Request Received",
       html: `
@@ -127,29 +171,33 @@ app.post("/send-email", async (req, res) => {
       `
     });
 
-    res.status(200).json({ success: true, message: "Emails sent successfully" });
+    res.status(200).json({
+      success: true,
+      message: "Emails sent successfully"
+    });
 
   } catch (error) {
     console.error("Email error:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to send email"
     });
   }
+
 });
 
 /* -----------------------------
    Serve React Build
 ----------------------------- */
 const buildPath = path.join(__dirname, "../frontend/build");
+
 app.use(express.static(buildPath));
 
-/* Serve React App */
 app.get("/", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
-/* Catch all other routes */
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
@@ -158,6 +206,7 @@ app.get("*", (req, res) => {
    Start Server
 ----------------------------- */
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
