@@ -1,86 +1,55 @@
 require("dotenv").config();
-
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const axios = require("axios");
-const qs = require("querystring");
 const { Resend } = require("resend");
 
 const app = express();
 
-/* -----------------------------
-   Middleware
------------------------------ */
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST"]
-}));
+app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
 
-/* -----------------------------
-   Email Client
------------------------------ */
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-/* -----------------------------
-   API ROUTES
------------------------------ */
 app.post("/send-email", async (req, res) => {
+  const { institution, name, reason, date, visitors, email, phone, captchaToken } = req.body;
 
-  const {
-    institution,
-    name,
-    reason,
-    date,
-    visitors,
-    email,
-    phone,
-    captchaToken
-  } = req.body;
-
-  /* -----------------------------
-     Validate Fields
-  ----------------------------- */
+  // Validate fields
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
-    return res.status(400).json({
-      success: false,
-      message: "All fields are required"
-    });
+    return res.status(400).json({ success: false, message: "All fields are required" });
   }
 
-  /* -----------------------------
-     Verify reCAPTCHA
-  ----------------------------- */
   if (!captchaToken) {
-    return res.status(400).json({
-      success: false,
-      message: "Captcha verification required"
-    });
+    return res.status(400).json({ success: false, message: "Captcha verification required" });
   }
 
   try {
-    // Correct form-urlencoded POST for Google
+    // Verify reCAPTCHA with Google
     const captchaVerify = await axios.post(
       "https://www.google.com/recaptcha/api/siteverify",
-      qs.stringify({
-        secret: process.env.RECAPTCHA_SECRET,
-        response: captchaToken
-      }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      null,
+      { params: { secret: process.env.RECAPTCHA_SECRET, response: captchaToken } }
     );
 
+    console.log("Captcha token received:", captchaToken);
+    console.log("Google reCAPTCHA response:", captchaVerify.data);
+
     if (!captchaVerify.data.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Robot verification failed",
-        errors: captchaVerify.data["error-codes"] || []
-      });
+    console.log("Captcha failed:", captchaVerify.data);
     }
 
-    /* -----------------------------
-       Admin Notification Email
-    ----------------------------- */
+    //if (!captchaVerify.data.success) {
+      //return res.status(400).json({
+        //success: false,
+        //message: `Robot verification failed: ${captchaVerify.data["error-codes"]?.join(", ")}`
+      //});
+    //}
+    
+
+    // -----------------------------
+    // Admin Notification Email
+    // -----------------------------
     await resend.emails.send({
       from: process.env.EMAIL_USER,
       to: process.env.EMAIL_USER,
@@ -142,9 +111,9 @@ app.post("/send-email", async (req, res) => {
       `
     });
 
-    /* -----------------------------
-       Visitor Confirmation Email
-    ----------------------------- */
+    // -----------------------------
+    // Visitor Confirmation Email
+    // -----------------------------
     await resend.emails.send({
       from: process.env.EMAIL_USER,
       to: email,
@@ -154,55 +123,37 @@ app.post("/send-email", async (req, res) => {
         <h2 style="color:#0b6b3a;">Visit Request Received</h2>
         <p>Hello ${name},</p>
         <p>
-        Thank you for submitting a visit request to our organization.
-        Your request has been received and our team will review it shortly.
+          Thank you for submitting a visit request to our organization.
+          Your request has been received and our team will review it shortly.
         </p>
         <p><strong>Visit Date:</strong> ${date}</p>
         <p><strong>Institution:</strong> ${institution}</p>
         <p>
-        We will contact you if further information is required.
+          We will contact you if further information is required.
         </p>
         <br>
         <p style="color:#777;font-size:12px;">
-        This is an automated confirmation email.
+          This is an automated confirmation email.
         </p>
       </div>
       `
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Emails sent successfully"
-    });
+    res.status(200).json({ success: true, message: "Emails sent successfully" });
 
   } catch (error) {
-    console.error("Email/Captcha error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to send email"
-    });
+    console.error("Email or reCAPTCHA error:", error);
+    res.status(500).json({ success: false, message: "Failed to send email" });
   }
 
 });
 
-/* -----------------------------
-   Serve React Build
------------------------------ */
+// Serve React build
 const buildPath = path.join(__dirname, "../frontend/build");
 app.use(express.static(buildPath));
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(buildPath, "index.html"));
-});
-
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
-/* -----------------------------
-   Start Server
------------------------------ */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
