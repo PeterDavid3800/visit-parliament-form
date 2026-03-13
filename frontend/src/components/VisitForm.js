@@ -33,7 +33,7 @@ function VisitForm() {
     e.preventDefault();
 
     if (!captchaToken) {
-      setStatusMessage("❌ Please verify that you are not a a robot.");
+      setStatusMessage("❌ Please verify that you are not a robot.");
       setTimeout(() => setStatusMessage(""), 5000);
       return;
     }
@@ -50,9 +50,12 @@ function VisitForm() {
         })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         setStatusMessage("✔ Request submitted successfully!");
 
+        // Reset form
         setFormData({
           institution: "",
           name: "",
@@ -67,7 +70,7 @@ function VisitForm() {
         recaptchaRef.current.reset();
 
       } else {
-        const data = await response.json();
+        // Show exact error from backend
         setStatusMessage(`❌ ${data.message || "Failed to submit request."}`);
       }
 
@@ -82,7 +85,6 @@ function VisitForm() {
   return (
     <div className="form-container">
 
-      {/* Intro Section */}
       <div className="form-intro">
         <h1 className="title">Visit Request Form</h1>
         <h2>How to get to Parliament Building</h2>
@@ -94,10 +96,8 @@ function VisitForm() {
         <p>To book a visit to Parliament, kindly fill in your details below.</p>
       </div>
 
-      {/* Status Message */}
       {statusMessage && <div className="status-message">{statusMessage}</div>}
 
-      {/* Form Section */}
       <form onSubmit={handleSubmit} className="visit-form">
 
         <input
@@ -160,7 +160,6 @@ function VisitForm() {
           onChange={handleChange}
         />
 
-        {/* reCAPTCHA */}
         <ReCAPTCHA
           ref={recaptchaRef}
           sitekey="6LeOTYksAAAAAE5IeQBAdniPBXJn3Vgluqmh9Qx6"
