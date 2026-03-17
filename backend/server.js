@@ -1,12 +1,14 @@
 require("dotenv").config();
 
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
 const path = require("path");
-const pool = require("./db"); // PostgreSQL connection
+const pool = require("./db");
+const axios = require("axios");
+const { Resend } = require("resend");
 
 const app = express();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* -----------------------------
    Middleware
@@ -15,29 +17,24 @@ app.use(cors());
 app.use(express.json());
 
 /* -----------------------------
-   Email Transporter
------------------------------ */
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-transporter.verify((error) => {
-  if (error) console.error("Email server error:", error);
-  else console.log("Email server ready");
-});
-
-/* -----------------------------
-   API ROUTES
+   API ROUTE
 ----------------------------- */
 
 app.post("/send-email", async (req, res) => {
+  const {
+    institution,
+    name,
+    reason,
+    date,
+    visitors,
+    email,
+    phone,
+    captchaToken
+  } = req.body;
 
-  const { institution, name, reason, date, visitors, email, phone } = req.body;
-
+  /* -----------------------------
+     Validate Inputs
+  ----------------------------- */
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
     return res.status(400).json({
       success: false,
@@ -45,12 +42,40 @@ app.post("/send-email", async (req, res) => {
     });
   }
 
+  if (!captchaToken) {
+    return res.status(400).json({
+      success: false,
+      message: "Please verify you are not a robot"
+    });
+  }
+
   try {
+    /* -----------------------------
+       VERIFY RECAPTCHA
+    ----------------------------- */
+    const verifyURL = `https://www.google.com/recaptcha/api/siteverify`;
+
+    const captchaVerify = await axios.post(
+      verifyURL,
+      null,
+      {
+        params: {
+          secret: process.env.RECAPTCHA_SECRET_KEY,
+          response: captchaToken
+        }
+      }
+    );
+
+    if (!captchaVerify.data.success) {
+      return res.status(400).json({
+        success: false,
+        message: "reCAPTCHA verification failed"
+      });
+    }
 
     /* -----------------------------
-       SAVE BOOKING TO DATABASE
+       SAVE TO DATABASE
     ----------------------------- */
-
     await pool.query(
       `INSERT INTO bookings
       (institution, name, reason, visit_date, visitors, email, phone)
@@ -59,83 +84,85 @@ app.post("/send-email", async (req, res) => {
     );
 
     /* -----------------------------
-       ADMIN EMAIL
+       EMAIL TEMPLATES
     ----------------------------- */
 
-    const adminMail = {
-      from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      replyTo: email,
-      subject: "📩 New Visit Request",
-      html: `
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
-        <tr>
-          <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:2px solid #0b6b3a;border-radius:6px;">
-              <tr>
-                <td style="background:#0b6b3a;color:#ffffff;text-align:center;padding:20px;font-size:22px;font-weight:bold;">
-                  New Visit Request
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:20px;">
-                  <table width="100%" cellpadding="10" cellspacing="0">
-                    <tr><td><b>Institution</b></td><td>${institution}</td></tr>
-                    <tr><td><b>Name</b></td><td>${name}</td></tr>
-                    <tr><td><b>Reason</b></td><td>${reason}</td></tr>
-                    <tr><td><b>Visit Date</b></td><td>${date}</td></tr>
-                    <tr><td><b>Visitors</b></td><td>${visitors}</td></tr>
-                    <tr><td><b>Email</b></td><td>${email}</td></tr>
-                    <tr><td><b>Phone</b></td><td>${phone}</td></tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-      `
-    };
+    const adminHTML = `
+    <table width="100%" style="background:#f2f2f2;padding:20px;font-family:Arial;">
+      <tr>
+        <td align="center">
+          <table width="600" style="background:#fff;border:2px solid #0b6b3a;">
+            <tr>
+              <td style="background:#0b6b3a;color:#fff;padding:20px;text-align:center;font-size:22px;">
+                New Visit Request
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px;">
+                <p><b>Institution:</b> ${institution}</p>
+                <p><b>Name:</b> ${name}</p>
+                <p><b>Reason:</b> ${reason}</p>
+                <p><b>Date:</b> ${date}</p>
+                <p><b>Visitors:</b> ${visitors}</p>
+                <p><b>Email:</b> ${email}</p>
+                <p><b>Phone:</b> ${phone}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    `;
+
+    const visitorHTML = `
+    <div style="font-family:Arial;padding:20px;">
+      <h2 style="color:#0b6b3a;">Visit Request Received</h2>
+      <p>Hello ${name},</p>
+      <p>Your visit request has been received.</p>
+      <p><b>Visit Date:</b> ${date}</p>
+      <p><b>Institution:</b> ${institution}</p>
+      <p>We will contact you soon.</p>
+    </div>
+    `;
 
     /* -----------------------------
-       VISITOR CONFIRMATION EMAIL
+       SEND EMAILS (RESEND)
     ----------------------------- */
 
-    const visitorMail = {
-      from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
+    // Admin email
+    await resend.emails.send({
+      from: "Visit Parliament <noreply@visit-parliament-form.org>",
+      to: process.env.RECEIVER_EMAIL,
+      reply_to: email,
+      subject: "📩 New Visit Request",
+      html: adminHTML
+    });
+
+    // Visitor confirmation
+    await resend.emails.send({
+      from: "Visit Parliament <noreply@visit-parliament-form.org>",
       to: email,
       subject: "Visit Request Received",
-      html: `
-      <div style="font-family:Arial;padding:20px;">
-        <h2 style="color:#0b6b3a;">Visit Request Received</h2>
-        <p>Hello ${name},</p>
-        <p>Your visit request has been received.</p>
-        <p><b>Visit Date:</b> ${date}</p>
-        <p><b>Institution:</b> ${institution}</p>
-        <p>Our team will review and contact you.</p>
-      </div>
-      `
-    };
+      html: visitorHTML
+    });
 
-    await transporter.sendMail(adminMail);
-    await transporter.sendMail(visitorMail);
+    /* -----------------------------
+       SUCCESS RESPONSE
+    ----------------------------- */
 
     res.status(200).json({
       success: true,
-      message: "Booking saved and emails sent"
+      message: "Booking submitted successfully"
     });
 
   } catch (error) {
-
     console.error("Server error:", error);
 
     res.status(500).json({
       success: false,
       message: "Server error"
     });
-
   }
-
 });
 
 /* -----------------------------
