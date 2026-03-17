@@ -58,7 +58,6 @@ function VisitForm() {
       });
 
       let data;
-
       try {
         data = await response.json();
       } catch {
