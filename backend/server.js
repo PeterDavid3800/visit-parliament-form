@@ -48,30 +48,32 @@ app.post("/send-email", async (req, res) => {
       message: "Please verify you are not a robot"
     });
   }
+try{
+/* -----------------------------
+   VERIFY RECAPTCHA (FIXED)
+----------------------------- */
+const verifyURL = "https://www.google.com/recaptcha/api/siteverify";
 
-  try {
-    /* -----------------------------
-       VERIFY RECAPTCHA
-    ----------------------------- */
-    const verifyURL = `https://www.google.com/recaptcha/api/siteverify`;
+const params = new URLSearchParams();
+params.append("secret", process.env.RECAPTCHA_SECRET_KEY);
+params.append("response", captchaToken);
 
-    const captchaVerify = await axios.post(
-      verifyURL,
-      null,
-      {
-        params: {
-          secret: process.env.RECAPTCHA_SECRET_KEY,
-          response: captchaToken
-        }
-      }
-    );
+const captchaVerify = await axios.post(verifyURL, params, {
+  headers: {
+    "Content-Type": "application/x-www-form-urlencoded"
+  }
+});
 
-    if (!captchaVerify.data.success) {
-      return res.status(400).json({
-        success: false,
-        message: "reCAPTCHA verification failed"
-      });
-    }
+/* DEBUG (VERY IMPORTANT) */
+console.log("CAPTCHA RESPONSE:", captchaVerify.data);
+
+if (!captchaVerify.data.success) {
+  return res.status(400).json({
+    success: false,
+    message: "reCAPTCHA verification failed",
+    errorCodes: captchaVerify.data["error-codes"]
+  });
+}
 
     /* -----------------------------
        SAVE TO DATABASE
