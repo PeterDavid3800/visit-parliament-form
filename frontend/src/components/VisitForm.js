@@ -57,7 +57,13 @@ function VisitForm() {
         })
       });
 
-      const data = await response.json();
+      let data;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = { message: "Invalid server response" };
+      }
 
       if (response.ok && data.success) {
         setStatusMessage("✔ Request submitted successfully!");

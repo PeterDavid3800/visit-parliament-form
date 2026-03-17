@@ -4,19 +4,17 @@ const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
 const path = require("path");
-const pool = require("./db"); // PostgreSQL connection
+const pool = require("./db");
 
 const app = express();
 
-/* -----------------------------
-   Middleware
------------------------------ */
+/* Middleware */
+
 app.use(cors());
 app.use(express.json());
 
-/* -----------------------------
-   Email Transporter
------------------------------ */
+/* Email Transporter */
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -30,11 +28,16 @@ transporter.verify((error) => {
   else console.log("Email server ready");
 });
 
-/* -----------------------------
-   API ROUTES
------------------------------ */
+/* API ROUTE */
 
 app.post("/send-email", async (req, res) => {
+
+  if (!req.body) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid request body"
+    });
+  }
 
   const { institution, name, reason, date, visitors, email, phone } = req.body;
 
@@ -47,10 +50,6 @@ app.post("/send-email", async (req, res) => {
 
   try {
 
-    /* -----------------------------
-       SAVE BOOKING TO DATABASE
-    ----------------------------- */
-
     await pool.query(
       `INSERT INTO bookings
       (institution, name, reason, visit_date, visitors, email, phone)
@@ -58,62 +57,33 @@ app.post("/send-email", async (req, res) => {
       [institution, name, reason, date, visitors, email, phone]
     );
 
-    /* -----------------------------
-       ADMIN EMAIL
-    ----------------------------- */
-
     const adminMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
       replyTo: email,
       subject: "📩 New Visit Request",
       html: `
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
-        <tr>
-          <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:2px solid #0b6b3a;border-radius:6px;">
-              <tr>
-                <td style="background:#0b6b3a;color:#ffffff;text-align:center;padding:20px;font-size:22px;font-weight:bold;">
-                  New Visit Request
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:20px;">
-                  <table width="100%" cellpadding="10" cellspacing="0">
-                    <tr><td><b>Institution</b></td><td>${institution}</td></tr>
-                    <tr><td><b>Name</b></td><td>${name}</td></tr>
-                    <tr><td><b>Reason</b></td><td>${reason}</td></tr>
-                    <tr><td><b>Visit Date</b></td><td>${date}</td></tr>
-                    <tr><td><b>Visitors</b></td><td>${visitors}</td></tr>
-                    <tr><td><b>Email</b></td><td>${email}</td></tr>
-                    <tr><td><b>Phone</b></td><td>${phone}</td></tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+      <h2>New Visit Request</h2>
+      <p><b>Institution:</b> ${institution}</p>
+      <p><b>Name:</b> ${name}</p>
+      <p><b>Reason:</b> ${reason}</p>
+      <p><b>Date:</b> ${date}</p>
+      <p><b>Visitors:</b> ${visitors}</p>
+      <p><b>Email:</b> ${email}</p>
+      <p><b>Phone:</b> ${phone}</p>
       `
     };
-
-    /* -----------------------------
-       VISITOR CONFIRMATION EMAIL
-    ----------------------------- */
 
     const visitorMail = {
       from: `"Visit Request System" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Visit Request Received",
       html: `
-      <div style="font-family:Arial;padding:20px;">
-        <h2 style="color:#0b6b3a;">Visit Request Received</h2>
-        <p>Hello ${name},</p>
-        <p>Your visit request has been received.</p>
-        <p><b>Visit Date:</b> ${date}</p>
-        <p><b>Institution:</b> ${institution}</p>
-        <p>Our team will review and contact you.</p>
-      </div>
+      <h2>Visit Request Received</h2>
+      <p>Hello ${name},</p>
+      <p>Your visit request has been received.</p>
+      <p><b>Visit Date:</b> ${date}</p>
+      <p><b>Institution:</b> ${institution}</p>
       `
     };
 
@@ -138,9 +108,7 @@ app.post("/send-email", async (req, res) => {
 
 });
 
-/* -----------------------------
-   Serve React Build
------------------------------ */
+/* Serve React */
 
 const buildPath = path.join(__dirname, "../frontend/build");
 
@@ -154,9 +122,17 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
 
-/* -----------------------------
-   Start Server
------------------------------ */
+/* Global Error Handler */
+
+app.use((err, req, res, next) => {
+  console.error("Unhandled server error:", err);
+  res.status(500).json({
+    success: false,
+    message: "Internal server error"
+  });
+});
+
+/* Start Server */
 
 const PORT = process.env.PORT || 5000;
 
