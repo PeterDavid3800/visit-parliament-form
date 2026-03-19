@@ -107,8 +107,8 @@ app.post("/send-email", async (req, res) => {
           html: adminHTML
         });
       } catch (err) {
-        console.error("Admin email failed:", err.message);
-      }
+  console.error("Admin email failed FULL:", err);
+}
     }
 
     // Send visitor confirmation
