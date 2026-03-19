@@ -91,26 +91,37 @@ app.post("/send-email", async (req, res) => {
 </div>
 `;
 
-    // ✅ Send admin email from a separate verified sender
-    if (!process.env.ADMIN_EMAIL) {
-      console.warn("ADMIN_EMAIL not set. Admin email will not be sent.");
+    // ✅ Use ONLY verified sender
+    const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
+
+    // Send admin email
+    if (!process.env.RECEIVER_EMAIL || !VERIFIED_EMAIL) {
+      console.warn("Missing RECEIVER_EMAIL or VERIFIED_EMAIL. Admin email not sent.");
     } else {
-      await resend.emails.send({
-        from: `Visit Parliament Admin <${process.env.ADMIN_EMAIL}>`, // must be verified in Resend
-        to: process.env.RECEIVER_EMAIL,
-        reply_to: email,
-        subject: "📩 New Visit Request",
-        html: adminHTML
-      });
+      try {
+        await resend.emails.send({
+          from: `Visit Parliament <${VERIFIED_EMAIL}>`,
+          to: process.env.RECEIVER_EMAIL,
+          reply_to: email,
+          subject: "📩 New Visit Request",
+          html: adminHTML
+        });
+      } catch (err) {
+        console.error("Admin email failed:", err.message);
+      }
     }
 
     // Send visitor confirmation
-    await resend.emails.send({
-      from: "Visit Parliament <noreply@visit-parliament-form.org>", // normal visitor sender
-      to: email,
-      subject: "📩 Visit Request Received",
-      html: visitorHTML
-    });
+    try {
+      await resend.emails.send({
+        from: `Visit Parliament <${VERIFIED_EMAIL}>`,
+        to: email,
+        subject: "📩 Visit Request Received",
+        html: visitorHTML
+      });
+    } catch (err) {
+      console.error("Visitor email failed:", err.message);
+    }
 
     res.status(200).json({
       success: true,
