@@ -198,7 +198,7 @@ function VisitForm() {
 
         <ReCAPTCHA
           ref={recaptchaRef}
-          sitekey="6Lf6fY4sAAAAABHTbjHjS0jIP7cHOGKbz4IJs1ME"
+          sitekey="6LeOTYksAAAAAE5IeQBAdniPBXJn3Vgluqmh9Qx6"
         />
 
         <button type="submit">Submit Request</button>
