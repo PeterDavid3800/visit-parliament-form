@@ -29,17 +29,15 @@ function VisitForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // ✅ ALWAYS get fresh token
-    const token = recaptchaRef.current.getValue();
-
-    console.log("TOKEN:", token);
-
-    if (!token) {
-      setStatusMessage("❌ Please verify that you are not a robot.");
-      setStatusType("error");
-      setTimeout(() => setStatusMessage(""), 5000);
-      return;
-    }
+    // ❌ CAPTCHA DISABLED
+    // const token = recaptchaRef.current.getValue();
+    // console.log("TOKEN:", token);
+    // if (!token) {
+    //   setStatusMessage("❌ Please verify that you are not a robot.");
+    //   setStatusType("error");
+    //   setTimeout(() => setStatusMessage(""), 5000);
+    //   return;
+    // }
 
     const reasonToSend =
       formData.reason === "Other"
@@ -56,8 +54,8 @@ function VisitForm() {
           },
           body: JSON.stringify({
             ...formData,
-            reason: reasonToSend,
-            captchaToken: token // ✅ correct token
+            reason: reasonToSend
+            // captchaToken: token ❌ removed
           })
         }
       );
@@ -79,8 +77,7 @@ function VisitForm() {
           phone: ""
         });
 
-        // ✅ Reset captcha AFTER success
-        recaptchaRef.current.reset();
+        // recaptchaRef.current.reset(); ❌ disabled
 
       } else {
         setStatusMessage(`❌ ${data.message || "Failed to submit request."}`);
@@ -196,10 +193,13 @@ function VisitForm() {
           required
         />
 
+        {/* ❌ RECAPTCHA DISABLED */}
+        {/*
         <ReCAPTCHA
           ref={recaptchaRef}
           sitekey="6LeOTYksAAAAAE5IeQBAdniPBXJn3Vgluqmh9Qx6"
         />
+        */}
 
         <button type="submit">Submit Request</button>
 

@@ -10,15 +10,8 @@ const { Resend } = require("resend");
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-/* -----------------------------
-   Middleware
------------------------------ */
 app.use(cors());
 app.use(express.json());
-
-/* -----------------------------
-   API ROUTE
------------------------------ */
 
 app.post("/send-email", async (req, res) => {
   const {
@@ -32,9 +25,6 @@ app.post("/send-email", async (req, res) => {
     captchaToken
   } = req.body;
 
-  /* -----------------------------
-     Validate Inputs
-  ----------------------------- */
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
     return res.status(400).json({
       success: false,
@@ -42,42 +32,43 @@ app.post("/send-email", async (req, res) => {
     });
   }
 
+  // ❌ CAPTCHA VALIDATION DISABLED
+  /*
   if (!captchaToken) {
     return res.status(400).json({
       success: false,
       message: "Please verify you are not a robot"
     });
   }
-try{
-/* -----------------------------
-   VERIFY RECAPTCHA (FIXED)
------------------------------ */
-const verifyURL = "https://www.google.com/recaptcha/api/siteverify";
+  */
 
-const params = new URLSearchParams();
-params.append("secret", process.env.RECAPTCHA_SECRET_KEY);
-params.append("response", captchaToken);
+  try {
 
-const captchaVerify = await axios.post(verifyURL, params, {
-  headers: {
-    "Content-Type": "application/x-www-form-urlencoded"
-  }
-});
+    // ❌ RECAPTCHA VERIFICATION DISABLED
+    /*
+    const verifyURL = "https://www.google.com/recaptcha/api/siteverify";
 
-/* DEBUG (VERY IMPORTANT) */
-console.log("CAPTCHA RESPONSE:", captchaVerify.data);
+    const params = new URLSearchParams();
+    params.append("secret", process.env.RECAPTCHA_SECRET_KEY);
+    params.append("response", captchaToken);
 
-if (!captchaVerify.data.success) {
-  return res.status(400).json({
-    success: false,
-    message: "reCAPTCHA verification failed",
-    errorCodes: captchaVerify.data["error-codes"]
-  });
-}
+    const captchaVerify = await axios.post(verifyURL, params, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      }
+    });
 
-    /* -----------------------------
-       SAVE TO DATABASE
-    ----------------------------- */
+    console.log("CAPTCHA RESPONSE:", captchaVerify.data);
+
+    if (!captchaVerify.data.success) {
+      return res.status(400).json({
+        success: false,
+        message: "reCAPTCHA verification failed",
+        errorCodes: captchaVerify.data["error-codes"]
+      });
+    }
+    */
+
     await pool.query(
       `INSERT INTO bookings
       (institution, name, reason, visit_date, visitors, email, phone)
@@ -85,36 +76,32 @@ if (!captchaVerify.data.success) {
       [institution, name, reason, date, visitors, email, phone]
     );
 
-    /* -----------------------------
-       EMAIL TEMPLATES
-    ----------------------------- */
-
     const adminHTML = `
-    <table width="100%" style="background:#f2f2f2;padding:20px;font-family:Arial;">
-      <tr>
-        <td align="center">
-          <table width="600" style="background:#fff;border:2px solid #0b6b3a;">
-            <tr>
-              <td style="background:#0b6b3a;color:#fff;padding:20px;text-align:center;font-size:22px;">
-                New Visit Request
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:20px;">
-                <p><b>Institution:</b> ${institution}</p>
-                <p><b>Name:</b> ${name}</p>
-                <p><b>Reason:</b> ${reason}</p>
-                <p><b>Date:</b> ${date}</p>
-                <p><b>Visitors:</b> ${visitors}</p>
-                <p><b>Email:</b> ${email}</p>
-                <p><b>Phone:</b> ${phone}</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-    `;
+<table width="100%" style="background:#f2f2f2;padding:20px;font-family:Arial;">
+  <tr>
+    <td align="center">
+      <table width="600" style="background:#fff;border:2px solid #0b6b3a;">
+        <tr>
+          <td style="background:#0b6b3a;color:#fff;padding:20px;text-align:center;font-size:22px;">
+            📩 New Visit Request
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px;">
+            <p><b>Institution:</b> ${institution}</p>
+            <p><b>Name:</b> ${name}</p>
+            <p><b>Reason:</b> ${reason}</p>
+            <p><b>Date:</b> ${date}</p>
+            <p><b>Visitors:</b> ${visitors}</p>
+            <p><b>Email:</b> ${email}</p>
+            <p><b>Phone:</b> ${phone}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`;
 
     const visitorHTML = `
     <div style="font-family:Arial;padding:20px;">
@@ -127,11 +114,6 @@ if (!captchaVerify.data.success) {
     </div>
     `;
 
-    /* -----------------------------
-       SEND EMAILS (RESEND)
-    ----------------------------- */
-
-    // Admin email
     await resend.emails.send({
       from: "Visit Parliament <noreply@visit-parliament-form.org>",
       to: process.env.RECEIVER_EMAIL,
@@ -140,17 +122,12 @@ if (!captchaVerify.data.success) {
       html: adminHTML
     });
 
-    // Visitor confirmation
     await resend.emails.send({
       from: "Visit Parliament <noreply@visit-parliament-form.org>",
       to: email,
       subject: "Visit Request Received",
       html: visitorHTML
     });
-
-    /* -----------------------------
-       SUCCESS RESPONSE
-    ----------------------------- */
 
     res.status(200).json({
       success: true,
@@ -167,10 +144,6 @@ if (!captchaVerify.data.success) {
   }
 });
 
-/* -----------------------------
-   Serve React Build
------------------------------ */
-
 const buildPath = path.join(__dirname, "../frontend/build");
 
 app.use(express.static(buildPath));
@@ -182,10 +155,6 @@ app.get("/", (req, res) => {
 app.get("*", (req, res) => {
   res.sendFile(path.join(buildPath, "index.html"));
 });
-
-/* -----------------------------
-   Start Server
------------------------------ */
 
 const PORT = process.env.PORT || 5000;
 
