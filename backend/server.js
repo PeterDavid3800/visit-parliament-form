@@ -4,7 +4,6 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const pool = require("./db");
-const axios = require("axios");
 const { Resend } = require("resend");
 
 const app = express();
@@ -22,9 +21,10 @@ app.post("/send-email", async (req, res) => {
     visitors,
     email,
     phone,
-    captchaToken
+    // captchaToken
   } = req.body;
 
+  // Validate inputs
   if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
     return res.status(400).json({
       success: false,
@@ -32,7 +32,7 @@ app.post("/send-email", async (req, res) => {
     });
   }
 
-  // ❌ CAPTCHA VALIDATION DISABLED
+  // CAPTCHA validation disabled
   /*
   if (!captchaToken) {
     return res.status(400).json({
@@ -43,39 +43,15 @@ app.post("/send-email", async (req, res) => {
   */
 
   try {
-
-    // ❌ RECAPTCHA VERIFICATION DISABLED
-    /*
-    const verifyURL = "https://www.google.com/recaptcha/api/siteverify";
-
-    const params = new URLSearchParams();
-    params.append("secret", process.env.RECAPTCHA_SECRET_KEY);
-    params.append("response", captchaToken);
-
-    const captchaVerify = await axios.post(verifyURL, params, {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      }
-    });
-
-    console.log("CAPTCHA RESPONSE:", captchaVerify.data);
-
-    if (!captchaVerify.data.success) {
-      return res.status(400).json({
-        success: false,
-        message: "reCAPTCHA verification failed",
-        errorCodes: captchaVerify.data["error-codes"]
-      });
-    }
-    */
-
+    // Save booking to database
     await pool.query(
       `INSERT INTO bookings
-      (institution, name, reason, visit_date, visitors, email, phone)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       (institution, name, reason, visit_date, visitors, email, phone)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [institution, name, reason, date, visitors, email, phone]
     );
 
+    // Admin email HTML
     const adminHTML = `
 <table width="100%" style="background:#f2f2f2;padding:20px;font-family:Arial;">
   <tr>
@@ -103,29 +79,36 @@ app.post("/send-email", async (req, res) => {
 </table>
 `;
 
+    // Visitor email HTML
     const visitorHTML = `
-    <div style="font-family:Arial;padding:20px;">
-      <h2 style="color:#0b6b3a;">Visit Request Received</h2>
-      <p>Hello ${name},</p>
-      <p>Your visit request has been received.</p>
-      <p><b>Visit Date:</b> ${date}</p>
-      <p><b>Institution:</b> ${institution}</p>
-      <p>We will contact you soon.</p>
-    </div>
-    `;
+<div style="font-family:Arial;padding:20px;">
+  <h2 style="color:#0b6b3a;">📩 Visit Request Received</h2>
+  <p>Hello ${name},</p>
+  <p>Your visit request has been received successfully.</p>
+  <p><b>Visit Date:</b> ${date}</p>
+  <p><b>Institution:</b> ${institution}</p>
+  <p>We will contact you soon.</p>
+</div>
+`;
 
-    await resend.emails.send({
-      from: "Visit Parliament <noreply@visit-parliament-form.org>",
-      to: process.env.RECEIVER_EMAIL,
-      reply_to: email,
-      subject: "📩 New Visit Request",
-      html: adminHTML
-    });
+    // ✅ Send admin email from a separate verified sender
+    if (!process.env.ADMIN_EMAIL) {
+      console.warn("ADMIN_EMAIL not set. Admin email will not be sent.");
+    } else {
+      await resend.emails.send({
+        from: `Visit Parliament Admin <${process.env.ADMIN_EMAIL}>`, // must be verified in Resend
+        to: process.env.RECEIVER_EMAIL,
+        reply_to: email,
+        subject: "📩 New Visit Request",
+        html: adminHTML
+      });
+    }
 
+    // Send visitor confirmation
     await resend.emails.send({
-      from: "Visit Parliament <noreply@visit-parliament-form.org>",
+      from: "Visit Parliament <noreply@visit-parliament-form.org>", // normal visitor sender
       to: email,
-      subject: "Visit Request Received",
+      subject: "📩 Visit Request Received",
       html: visitorHTML
     });
 
@@ -136,7 +119,6 @@ app.post("/send-email", async (req, res) => {
 
   } catch (error) {
     console.error("Server error:", error);
-
     res.status(500).json({
       success: false,
       message: "Server error"
@@ -144,20 +126,12 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
+// Serve React build
 const buildPath = path.join(__dirname, "../frontend/build");
-
 app.use(express.static(buildPath));
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(buildPath, "index.html"));
-});
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(buildPath, "index.html"));
-});
+app.get("/", (req, res) => res.sendFile(path.join(buildPath, "index.html")));
+app.get("*", (req, res) => res.sendFile(path.join(buildPath, "index.html")));
 
 const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
