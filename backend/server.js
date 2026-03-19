@@ -78,7 +78,7 @@ app.post("/send-email", async (req, res) => {
   </tr>
 </table>
 `;
-
+/*
     // Visitor email HTML
     const visitorHTML = `
 <div style="font-family:Arial;padding:20px;">
@@ -90,7 +90,7 @@ app.post("/send-email", async (req, res) => {
   <p>We will contact you soon.</p>
 </div>
 `;
-
+*/
     // ✅ Use ONLY verified sender
     const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
 
