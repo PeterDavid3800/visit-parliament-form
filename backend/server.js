@@ -5,14 +5,38 @@ const cors = require("cors");
 const path = require("path");
 const pool = require("./db");
 const { Resend } = require("resend");
+const multer = require("multer");
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
+const upload = multer({ dest: "uploads/" });
 
 app.use(cors());
 app.use(express.json());
 
-app.post("/send-email", async (req, res) => {
+/* =========================
+   GET AVAILABLE SLOTS
+========================= */
+app.get("/slots", async (req, res) => {
+  const { date } = req.query;
+
+  try {
+    const result = await pool.query(
+      "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
+      [date]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch slots" });
+  }
+});
+
+/* =========================
+   CREATE BOOKING
+========================= */
+app.post("/send-email", upload.single("file"), async (req, res) => {
   const {
     institution,
     name,
@@ -21,128 +45,176 @@ app.post("/send-email", async (req, res) => {
     visitors,
     email,
     phone,
-    // captchaToken
+    slot_id,
+    institution_type,
+    institution_status
   } = req.body;
 
-  // Validate inputs
-  if (!institution || !name || !reason || !date || !visitors || !email || !phone) {
+  const file = req.file;
+
+  if (
+    !institution || !name || !reason || !date ||
+    !visitors || !email || !phone || !slot_id
+  ) {
     return res.status(400).json({
       success: false,
       message: "All fields are required"
     });
   }
 
-  // CAPTCHA validation disabled
-  /*
-  if (!captchaToken) {
-    return res.status(400).json({
-      success: false,
-      message: "Please verify you are not a robot"
-    });
-  }
-  */
-
   try {
-    // Save booking to database
-    await pool.query(
-      `INSERT INTO bookings
-       (institution, name, reason, visit_date, visitors, email, phone)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [institution, name, reason, date, visitors, email, phone]
+    /* =========================
+       VALIDATE SLOT
+    ========================= */
+    const slotRes = await pool.query(
+      "SELECT * FROM slots WHERE id=$1",
+      [slot_id]
     );
 
-    // Admin email HTML
-    const adminHTML = `
-<table width="100%" style="background:#f2f2f2;padding:20px;font-family:Arial;">
-  <tr>
-    <td align="center">
-      <table width="600" style="background:#fff;border:2px solid #0b6b3a;">
-        <tr>
-          <td style="background:#0b6b3a;color:#fff;padding:20px;text-align:center;font-size:22px;">
-            📩 New Visit Request
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:20px;">
-            <p><b>Institution:</b> ${institution}</p>
-            <p><b>Name:</b> ${name}</p>
-            <p><b>Reason:</b> ${reason}</p>
-            <p><b>Date:</b> ${date}</p>
-            <p><b>Visitors:</b> ${visitors}</p>
-            <p><b>Email:</b> ${email}</p>
-            <p><b>Phone:</b> ${phone}</p>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-`;
-/*
-    // Visitor email HTML
-    const visitorHTML = `
-<div style="font-family:Arial;padding:20px;">
-  <h2 style="color:#0b6b3a;">📩 Visit Request Received</h2>
-  <p>Hello ${name},</p>
-  <p>Your visit request has been received successfully.</p>
-  <p><b>Visit Date:</b> ${date}</p>
-  <p><b>Institution:</b> ${institution}</p>
-  <p>We will contact you soon.</p>
-</div>
-`;
-*/
-    // ✅ Use ONLY verified sender
-    const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
-
-    // Send admin email
-    if (!process.env.RECEIVER_EMAIL || !VERIFIED_EMAIL) {
-      console.warn("Missing RECEIVER_EMAIL or VERIFIED_EMAIL. Admin email not sent.");
-    } else {
-      try {
-        await resend.emails.send({
-          from: `Visit Parliament <${VERIFIED_EMAIL}>`,
-          to: process.env.RECEIVER_EMAIL,
-          reply_to: email,
-          subject: "📩 New Visit Request",
-          html: adminHTML
-        });
-      } catch (err) {
-  console.error("Admin email failed FULL:", err);
-}
+    if (slotRes.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid slot"
+      });
     }
 
-    // Send visitor confirmation
-    try {
+    const slot = slotRes.rows[0];
+
+    if (slot.booked_count >= slot.capacity) {
+      return res.status(400).json({
+        success: false,
+        message: "Slot is full"
+      });
+    }
+
+    if (visitors > 50) {
+      return res.status(400).json({
+        success: false,
+        message: "Max 50 participants allowed"
+      });
+    }
+
+    const fileUrl = file ? file.path : null;
+
+    /* =========================
+       SAVE BOOKING
+    ========================= */
+    await pool.query(
+      `INSERT INTO bookings
+      (institution, name, reason, visit_date, visitors, email, phone, slot_id, institution_type, institution_status, file_url)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        institution,
+        name,
+        reason,
+        date,
+        visitors,
+        email,
+        phone,
+        slot_id,
+        institution_type,
+        institution_status,
+        fileUrl
+      ]
+    );
+
+    /* =========================
+       UPDATE SLOT COUNT
+    ========================= */
+    await pool.query(
+      "UPDATE slots SET booked_count = booked_count + 1 WHERE id=$1",
+      [slot_id]
+    );
+
+    /* =========================
+       EMAILS
+    ========================= */
+    const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
+
+    const adminHTML = `
+      <h2>New Visit Request</h2>
+      <p><b>Institution:</b> ${institution}</p>
+      <p><b>Name:</b> ${name}</p>
+      <p><b>Visitors:</b> ${visitors}</p>
+      <p><b>Date:</b> ${date}</p>
+      <p><b>Time:</b> ${slot.time}</p>
+    `;
+
+    const visitorHTML = `
+      <h2>Visit Request Received</h2>
+      <p>Hello ${name},</p>
+      <p>Your booking is confirmed.</p>
+      <p><b>Date:</b> ${date}</p>
+      <p><b>Time:</b> ${slot.time}</p>
+    `;
+
+    if (process.env.RECEIVER_EMAIL && VERIFIED_EMAIL) {
+      await resend.emails.send({
+        from: `Visit Parliament <${VERIFIED_EMAIL}>`,
+        to: process.env.RECEIVER_EMAIL,
+        reply_to: email,
+        subject: "New Visit Request",
+        html: adminHTML
+      });
+
       await resend.emails.send({
         from: `Visit Parliament <${VERIFIED_EMAIL}>`,
         to: email,
-        subject: "📩 Visit Request Received",
+        subject: "Visit Request Received",
         html: visitorHTML
       });
-    } catch (err) {
-      console.error("Visitor email failed:", err.message);
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Booking submitted successfully"
-    });
+    res.json({ success: true });
 
-  } catch (error) {
-    console.error("Server error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
   }
 });
 
-// Serve React build
+/* =========================
+   GENERATE SLOTS (RUN ONCE)
+========================= */
+app.get("/generate-slots", async (req, res) => {
+  const { date, type } = req.query;
+
+  const capacity = type === "sitting" ? 4 : 5;
+
+  const times = [
+    "09:00","09:30","10:00","10:30",
+    "11:00","11:30","12:00","12:30",
+    "14:30","15:00","15:30","16:00","16:30","17:00"
+  ];
+
+  try {
+    for (let time of times) {
+      await pool.query(
+        `INSERT INTO slots (date, time, type, capacity)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT DO NOTHING`,
+        [date, time, type, capacity]
+      );
+    }
+
+    res.send("Slots generated");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error generating slots");
+  }
+});
+
+/* =========================
+   SERVE FRONTEND
+========================= */
 const buildPath = path.join(__dirname, "../frontend/build");
 app.use(express.static(buildPath));
 
-app.get("/", (req, res) => res.sendFile(path.join(buildPath, "index.html")));
-app.get("*", (req, res) => res.sendFile(path.join(buildPath, "index.html")));
+app.get("*", (req, res) =>
+  res.sendFile(path.join(buildPath, "index.html"))
+);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT}`)
+);

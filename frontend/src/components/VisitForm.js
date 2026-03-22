@@ -1,9 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import "../styles/VisitForm.css";
-import ReCAPTCHA from "react-google-recaptcha";
 
 function VisitForm() {
-  const recaptchaRef = useRef();
+  const [slots, setSlots] = useState([]);
 
   const [formData, setFormData] = useState({
     institution: "",
@@ -11,60 +10,85 @@ function VisitForm() {
     reason: "",
     otherReason: "",
     date: "",
+    slot_id: "",
     visitors: "",
     email: "",
-    phone: ""
+    phone: "",
+    institution_type: "",
+    institution_status: "",
+    file: null,
+    consent: false
   });
 
-  const [statusMessage, setStatusMessage] = useState("");
-  const [statusType, setStatusType] = useState("");
+  const [status, setStatus] = useState("");
 
+  /* =========================
+     HANDLE INPUT CHANGE
+  ========================= */
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value, type, checked } = e.target;
+
+    if (type === "checkbox") {
+      setFormData({ ...formData, [name]: checked });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
+  /* =========================
+     FETCH SLOTS
+  ========================= */
+  const fetchSlots = async (date) => {
+    try {
+      const res = await fetch(
+        `https://visit-parliament-form.onrender.com/slots?date=${date}`
+      );
+      const data = await res.json();
+      setSlots(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /* =========================
+     SUBMIT FORM
+  ========================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // ❌ CAPTCHA DISABLED
-    // const token = recaptchaRef.current.getValue();
-    // console.log("TOKEN:", token);
-    // if (!token) {
-    //   setStatusMessage("❌ Please verify that you are not a robot.");
-    //   setStatusType("error");
-    //   setTimeout(() => setStatusMessage(""), 5000);
-    //   return;
-    // }
+    if (!formData.consent) {
+      setStatus("❌ You must agree to the terms");
+      return;
+    }
+
+    const form = new FormData();
 
     const reasonToSend =
       formData.reason === "Other"
         ? formData.otherReason
         : formData.reason;
 
+    Object.keys(formData).forEach((key) => {
+      if (key === "reason") {
+        form.append("reason", reasonToSend);
+      } else {
+        form.append(key, formData[key]);
+      }
+    });
+
     try {
       const response = await fetch(
         "https://visit-parliament-form.onrender.com/send-email",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            ...formData,
-            reason: reasonToSend
-            // captchaToken: token ❌ removed
-          })
+          body: form
         }
       );
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        setStatusMessage("✔ Request submitted successfully!");
-        setStatusType("success");
+      if (data.success) {
+        setStatus("✅ Booking successful!");
 
         setFormData({
           institution: "",
@@ -72,45 +96,40 @@ function VisitForm() {
           reason: "",
           otherReason: "",
           date: "",
+          slot_id: "",
           visitors: "",
           email: "",
-          phone: ""
+          phone: "",
+          institution_type: "",
+          institution_status: "",
+          file: null,
+          consent: false
         });
 
-        // recaptchaRef.current.reset(); ❌ disabled
-
+        setSlots([]);
       } else {
-        setStatusMessage(`❌ ${data.message || "Failed to submit request."}`);
-        setStatusType("error");
+        setStatus(`❌ ${data.message || "Error occurred"}`);
       }
-
-    } catch (error) {
-      console.error("Error:", error);
-      setStatusMessage("❌ Server error. Please try again.");
-      setStatusType("error");
+    } catch (err) {
+      console.error(err);
+      setStatus("❌ Server error");
     }
 
-    setTimeout(() => setStatusMessage(""), 5000);
+    setTimeout(() => setStatus(""), 5000);
   };
 
   return (
     <div className="form-container">
+      <h1 className="title">Visit Request Form</h1>
 
-      <div className="form-intro">
-        <h1 className="title">Visit Request Form</h1>
-        <h2>How to get to Parliament Building</h2>
-        <p><strong>Parliament Road, Nairobi</strong></p>
-        <p>Fill in your details below to book a visit.</p>
-      </div>
+      <p><strong>Parliament Road, Nairobi</strong></p>
+      <p>Book your visit below. Entry is FREE.</p>
 
-      {statusMessage && (
-        <div className={`status-message ${statusType}`}>
-          {statusMessage}
-        </div>
-      )}
+      {status && <div className="status">{status}</div>}
 
       <form onSubmit={handleSubmit} className="visit-form">
 
+        {/* Institution */}
         <input
           type="text"
           name="institution"
@@ -120,6 +139,7 @@ function VisitForm() {
           required
         />
 
+        {/* Name */}
         <input
           type="text"
           name="name"
@@ -129,6 +149,32 @@ function VisitForm() {
           required
         />
 
+        {/* Institution Type */}
+        <select
+          name="institution_type"
+          value={formData.institution_type}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Institution Type</option>
+          <option>Private</option>
+          <option>Public</option>
+          <option>Charitable</option>
+        </select>
+
+        {/* Registration Status */}
+        <select
+          name="institution_status"
+          value={formData.institution_status}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Registration Status</option>
+          <option>Registered</option>
+          <option>Not Registered</option>
+        </select>
+
+        {/* Reason */}
         <select
           name="reason"
           value={formData.reason}
@@ -147,6 +193,7 @@ function VisitForm() {
           <option>Other</option>
         </select>
 
+        {/* Other reason */}
         {formData.reason === "Other" && (
           <input
             type="text"
@@ -158,23 +205,48 @@ function VisitForm() {
           />
         )}
 
+        {/* Date */}
         <input
           type="date"
           name="date"
           value={formData.date}
-          onChange={handleChange}
+          onChange={(e) => {
+            handleChange(e);
+            fetchSlots(e.target.value);
+          }}
           required
         />
 
+        {/* Slot */}
+        <select
+          name="slot_id"
+          value={formData.slot_id}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Select Time Slot</option>
+          {slots.map((slot) => (
+            <option
+              key={slot.id}
+              value={slot.id}
+              disabled={slot.booked_count >= slot.capacity}
+            >
+              {slot.time} ({slot.booked_count}/{slot.capacity})
+            </option>
+          ))}
+        </select>
+
+        {/* Visitors */}
         <input
           type="number"
           name="visitors"
-          placeholder="Number of Visitors"
+          placeholder="Number of Visitors (Max 50)"
           value={formData.visitors}
           onChange={handleChange}
           required
         />
 
+        {/* Email */}
         <input
           type="email"
           name="email"
@@ -184,6 +256,7 @@ function VisitForm() {
           required
         />
 
+        {/* Phone */}
         <input
           type="text"
           name="phone"
@@ -193,16 +266,37 @@ function VisitForm() {
           required
         />
 
-        {/* ❌ RECAPTCHA DISABLED */}
-        {/*
-        <ReCAPTCHA
-          ref={recaptchaRef}
-          sitekey="6LeOTYksAAAAAE5IeQBAdniPBXJn3Vgluqmh9Qx6"
+        {/* File Upload */}
+        <label>Upload Signed Participant List</label>
+        <input
+          type="file"
+          name="file"
+          onChange={(e) =>
+            setFormData({ ...formData, file: e.target.files[0] })
+          }
+          required
         />
-        */}
 
+        {/* Rules */}
+        <div className="rules">
+          <p>• Only Grade 6 and above allowed</p>
+          <p>• Max 50 participants per school</p>
+          <p>• Departure within 15 minutes after tour</p>
+        </div>
+
+        {/* Consent */}
+        <label className="consent">
+          <input
+            type="checkbox"
+            name="consent"
+            checked={formData.consent}
+            onChange={handleChange}
+          />
+          I consent to photography and videography by Parliament
+        </label>
+
+        {/* Submit */}
         <button type="submit">Submit Request</button>
-
       </form>
     </div>
   );
