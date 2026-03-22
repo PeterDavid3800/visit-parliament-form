@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../styles/VisitForm.css";
 
 function VisitForm() {
   const [slots, setSlots] = useState([]);
-
   const [formData, setFormData] = useState({
     institution: "",
     name: "",
@@ -17,79 +16,69 @@ function VisitForm() {
     institution_type: "",
     institution_status: "",
     file: null,
-    consent: false
+    consent: false,
   });
-
   const [status, setStatus] = useState("");
+  const [visitorWarning, setVisitorWarning] = useState("");
 
-  /* =========================
-     HANDLE INPUT CHANGE
-  ========================= */
+  /* Handle input change */
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    if (type === "checkbox") {
-      setFormData({ ...formData, [name]: checked });
-    } else {
-      setFormData({ ...formData, [name]: value });
+    if (name === "visitors") {
+      if (value > 50) setVisitorWarning("⚠ Maximum 50 visitors allowed per school");
+      else setVisitorWarning("");
     }
+
+    if (type === "checkbox") setFormData({ ...formData, [name]: checked });
+    else setFormData({ ...formData, [name]: value });
   };
 
-  /* =========================
-     FETCH SLOTS
-  ========================= */
-  const fetchSlots = async (date) => {
-    try {
-      const res = await fetch(
-        `https://visit-parliament-form.onrender.com/slots?date=${date}`
-      );
-      const data = await res.json();
-      setSlots(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  /* Fetch slots when date changes */
+  useEffect(() => {
+    if (!formData.date) return;
+    const fetchSlots = async () => {
+      try {
+        const res = await fetch(
+          `https://visit-parliament-form.onrender.com/slots?date=${formData.date}`
+        );
+        const data = await res.json();
+        setSlots(data);
+        setFormData((prev) => ({ ...prev, slot_id: "" })); // reset selection
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchSlots();
+  }, [formData.date]);
 
-  /* =========================
-     SUBMIT FORM
-  ========================= */
+  /* Handle form submit */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!formData.consent) {
-      setStatus("❌ You must agree to the terms");
+      setStatus("❌ You must agree to the consent for photography/videography.");
+      return;
+    }
+    if (formData.visitors > 50) {
+      setStatus("❌ Maximum 50 visitors allowed per school.");
       return;
     }
 
     const form = new FormData();
-
-    const reasonToSend =
-      formData.reason === "Other"
-        ? formData.otherReason
-        : formData.reason;
-
+    const reasonToSend = formData.reason === "Other" ? formData.otherReason : formData.reason;
     Object.keys(formData).forEach((key) => {
-      if (key === "reason") {
-        form.append("reason", reasonToSend);
-      } else {
-        form.append(key, formData[key]);
-      }
+      if (key === "reason") form.append("reason", reasonToSend);
+      else form.append(key, formData[key]);
     });
 
     try {
-      const response = await fetch(
+      const res = await fetch(
         "https://visit-parliament-form.onrender.com/send-email",
-        {
-          method: "POST",
-          body: form
-        }
+        { method: "POST", body: form }
       );
-
-      const data = await response.json();
-
+      const data = await res.json();
       if (data.success) {
         setStatus("✅ Booking successful!");
-
         setFormData({
           institution: "",
           name: "",
@@ -103,16 +92,13 @@ function VisitForm() {
           institution_type: "",
           institution_status: "",
           file: null,
-          consent: false
+          consent: false,
         });
-
         setSlots([]);
-      } else {
-        setStatus(`❌ ${data.message || "Error occurred"}`);
-      }
+      } else setStatus(`❌ ${data.message || "Error occurred"}`);
     } catch (err) {
       console.error(err);
-      setStatus("❌ Server error");
+      setStatus("❌ Server error. Try again.");
     }
 
     setTimeout(() => setStatus(""), 5000);
@@ -121,66 +107,29 @@ function VisitForm() {
   return (
     <div className="form-container">
       <h1 className="title">Visit Request Form</h1>
-
       <p><strong>Parliament Road, Nairobi</strong></p>
-      <p>Book your visit below. Entry is FREE.</p>
+      <p>Book your visit below. Entry is <strong>FREE</strong>.</p>
 
       {status && <div className="status">{status}</div>}
 
       <form onSubmit={handleSubmit} className="visit-form">
+        <input type="text" name="institution" placeholder="Institution Name" value={formData.institution} onChange={handleChange} required />
+        <input type="text" name="name" placeholder="Your Name" value={formData.name} onChange={handleChange} required />
 
-        {/* Institution */}
-        <input
-          type="text"
-          name="institution"
-          placeholder="Institution Name"
-          value={formData.institution}
-          onChange={handleChange}
-          required
-        />
-
-        {/* Name */}
-        <input
-          type="text"
-          name="name"
-          placeholder="Your Name"
-          value={formData.name}
-          onChange={handleChange}
-          required
-        />
-
-        {/* Institution Type */}
-        <select
-          name="institution_type"
-          value={formData.institution_type}
-          onChange={handleChange}
-          required
-        >
+        <select name="institution_type" value={formData.institution_type} onChange={handleChange} required>
           <option value="">Institution Type</option>
           <option>Private</option>
           <option>Public</option>
           <option>Charitable</option>
         </select>
 
-        {/* Registration Status */}
-        <select
-          name="institution_status"
-          value={formData.institution_status}
-          onChange={handleChange}
-          required
-        >
+        <select name="institution_status" value={formData.institution_status} onChange={handleChange} required>
           <option value="">Registration Status</option>
           <option>Registered</option>
           <option>Not Registered</option>
         </select>
 
-        {/* Reason */}
-        <select
-          name="reason"
-          value={formData.reason}
-          onChange={handleChange}
-          required
-        >
+        <select name="reason" value={formData.reason} onChange={handleChange} required>
           <option value="">Reason for Visit</option>
           <option>Educational Tour</option>
           <option>Official Meeting</option>
@@ -193,109 +142,62 @@ function VisitForm() {
           <option>Other</option>
         </select>
 
-        {/* Other reason */}
         {formData.reason === "Other" && (
-          <input
-            type="text"
-            name="otherReason"
-            placeholder="Specify your reason"
-            value={formData.otherReason}
-            onChange={handleChange}
-            required
-          />
+          <input type="text" name="otherReason" placeholder="Specify your reason" value={formData.otherReason} onChange={handleChange} required />
         )}
 
-        {/* Date */}
-        <input
-          type="date"
-          name="date"
-          value={formData.date}
-          onChange={(e) => {
-            handleChange(e);
-            fetchSlots(e.target.value);
-          }}
-          required
-        />
+        <input type="date" name="date" min={new Date().toISOString().split("T")[0]} value={formData.date} onChange={handleChange} required />
 
-        {/* Slot */}
-        <select
-          name="slot_id"
-          value={formData.slot_id}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Time Slot</option>
-          {slots.map((slot) => (
-            <option
-              key={slot.id}
-              value={slot.id}
-              disabled={slot.booked_count >= slot.capacity}
-            >
-              {slot.time} ({slot.booked_count}/{slot.capacity})
-            </option>
-          ))}
-        </select>
+        {/* Calendar-style slot picker */}
+        {formData.date && (
+          <div className="slot-grid">
+            {slots.length === 0 && <p>No slots available for this date.</p>}
+            {Array.isArray(slots) &&
+              slots.map((slot) => {
+                const bookedCount = Number(slot.booked_count) || 0;
+                const capacity = Number(slot.capacity) || 0;
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    className={`slot-btn ${bookedCount >= capacity ? "full" : ""} ${formData.slot_id == slot.id ? "selected" : ""}`}
+                    disabled={bookedCount >= capacity}
+                    onClick={() => setFormData({ ...formData, slot_id: slot.id })}
+                  >
+                    {slot.time} ({bookedCount}/{capacity})
+                  </button>
+                );
+              })}
+          </div>
+        )}
 
-        {/* Visitors */}
-        <input
-          type="number"
-          name="visitors"
-          placeholder="Number of Visitors (Max 50)"
-          value={formData.visitors}
-          onChange={handleChange}
-          required
-        />
+        <input type="number" name="visitors" placeholder="Number of Visitors" value={formData.visitors} onChange={handleChange} max={50} required />
+        {visitorWarning && <small className="warning">{visitorWarning}</small>}
 
-        {/* Email */}
-        <input
-          type="email"
-          name="email"
-          placeholder="Email Address"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
+        <input type="email" name="email" placeholder="Email Address" value={formData.email} onChange={handleChange} required />
+        <input type="text" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleChange} required />
 
-        {/* Phone */}
-        <input
-          type="text"
-          name="phone"
-          placeholder="Phone Number"
-          value={formData.phone}
-          onChange={handleChange}
-          required
-        />
-
-        {/* File Upload */}
         <label>Upload Signed Participant List</label>
-        <input
-          type="file"
-          name="file"
-          onChange={(e) =>
-            setFormData({ ...formData, file: e.target.files[0] })
-          }
-          required
-        />
+        <input type="file" name="file" onChange={(e) => setFormData({ ...formData, file: e.target.files[0] })} required />
 
-        {/* Rules */}
         <div className="rules">
           <p>• Only Grade 6 and above allowed</p>
           <p>• Max 50 participants per school</p>
           <p>• Departure within 15 minutes after tour</p>
         </div>
 
-        {/* Consent */}
         <label className="consent">
-          <input
-            type="checkbox"
-            name="consent"
-            checked={formData.consent}
-            onChange={handleChange}
-          />
+          <input type="checkbox" name="consent" checked={formData.consent} onChange={handleChange} />
           I consent to photography and videography by Parliament
         </label>
 
-        {/* Submit */}
+        <p className="canteen-info">
+          Schools wishing to book meals/refreshments may contact: <strong>canteen@parliament.go.ke</strong> or call <strong>+254-XXX-XXXX</strong>
+        </p>
+        <p className="outreach-info">
+          For other inquiries, contact <strong>publiceducation@parliament.go.ke</strong>
+        </p>
+
         <button type="submit">Submit Request</button>
       </form>
     </div>
