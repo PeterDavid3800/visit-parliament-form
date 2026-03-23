@@ -21,18 +21,56 @@ app.get("/slots", async (req, res) => {
   const { date } = req.query;
 
   try {
-    const result = await pool.query(
+    let result = await pool.query(
       "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
       [date]
     );
 
+    // 🔥 AUTO CREATE IF EMPTY
+    if (result.rows.length === 0) {
+      const type = "non-sitting"; // you can improve later
+      const capacity = type === "sitting" ? 4 : 5;
+
+      const times = [
+        "09:00","09:30","10:00","10:30",
+        "11:00","11:30","12:00","12:30",
+        "14:30","15:00","15:30","16:00","16:30","17:00"
+      ];
+
+      for (let time of times) {
+        await pool.query(
+          `INSERT INTO slots (date, time, type, capacity)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT DO NOTHING`,
+          [date, time, type, capacity]
+        );
+      }
+
+      // fetch again
+      result = await pool.query(
+        "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
+        [date]
+      );
+    }
+
     res.json(result.rows);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch slots" });
   }
 });
-
+app.get("/admin/bookings", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM bookings ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+});
 /* =========================
    CREATE BOOKING
 ========================= */
@@ -87,7 +125,7 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       });
     }
 
-    if (visitors > 50) {
+    if (Number(visitors) > 50) {
       return res.status(400).json({
         success: false,
         message: "Max 50 participants allowed"
