@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const pool = require("./db");
+const pool = require("./db"); // your Postgres connection
 const { Resend } = require("resend");
 const multer = require("multer");
 
@@ -15,23 +15,20 @@ app.use(cors());
 app.use(express.json());
 
 /* =========================
-   GET AVAILABLE SLOTS (FIXED)
+   GET AVAILABLE SLOTS
 ========================= */
 app.get("/slots", async (req, res) => {
   const { date } = req.query;
 
   try {
     let result = await pool.query(
-      `SELECT * FROM slots 
-       WHERE DATE(date) = $1 
-       ORDER BY time ASC`,
+      `SELECT * FROM slots WHERE DATE(date) = $1 ORDER BY time ASC`,
       [date]
     );
 
     // AUTO-GENERATE if empty
     if (result.rows.length === 0) {
       const capacity = 5;
-
       const times = [
         "09:00","09:30","10:00","10:30","11:00","11:30",
         "12:00","12:30","14:30","15:00","15:30","16:00","16:30"
@@ -48,9 +45,7 @@ app.get("/slots", async (req, res) => {
 
       // Fetch again
       result = await pool.query(
-        `SELECT * FROM slots 
-         WHERE DATE(date) = $1 
-         ORDER BY time ASC`,
+        `SELECT * FROM slots WHERE DATE(date) = $1 ORDER BY time ASC`,
         [date]
       );
     }
@@ -63,7 +58,7 @@ app.get("/slots", async (req, res) => {
 });
 
 /* =========================
-   CREATE BOOKING (FIXED)
+   CREATE BOOKING
 ========================= */
 app.post("/send-email", upload.single("file"), async (req, res) => {
   try {
@@ -98,17 +93,12 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
     }
 
     // VALIDATE SLOT
-    const slotRes = await pool.query(
-      "SELECT * FROM slots WHERE id=$1",
-      [slot_id]
-    );
-
+    const slotRes = await pool.query("SELECT * FROM slots WHERE id=$1", [slot_id]);
     if (slotRes.rows.length === 0) {
       return res.status(400).json({ success: false, message: "Invalid slot" });
     }
 
     const slot = slotRes.rows[0];
-
     if (slot.booked_count >= slot.capacity) {
       return res.status(400).json({ success: false, message: "Slot is full" });
     }
@@ -118,8 +108,8 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
     // INSERT BOOKING
     await pool.query(
       `INSERT INTO bookings
-      (institution, name, reason, visit_date, visitors, email, phone, slot_id, institution_type, institution_status, file_url)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+       (institution, name, reason, visit_date, visitors, email, phone, slot_id, institution_type, institution_status, file_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         institution,
         name,
@@ -141,26 +131,82 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       [slot_id]
     );
 
-    // EMAILS
+    // SEND BEAUTIFUL EMAILS
     const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
 
     if (process.env.RECEIVER_EMAIL && VERIFIED_EMAIL) {
-      await resend.emails.send({
-        from: `Visit Parliament <${VERIFIED_EMAIL}>`,
+      // ADMIN EMAIL
+      const adminMail = {
+        from: `Visit Request System <${VERIFIED_EMAIL}>`,
         to: process.env.RECEIVER_EMAIL,
-        reply_to: email,
-        subject: "New Visit Request",
-        html: `<h2>New Visit Request</h2>
-               <p><b>${institution}</b> booked ${visitorsCount} visitors</p>
-               <p>${date} at ${slot.time}</p>`,
-      });
+        replyTo: email,
+        subject: "📩 New Visit Request",
+        html: `
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:2px solid #0b6b3a;border-radius:6px;">
+                  <tr>
+                    <td style="background:#0b6b3a;color:#ffffff;text-align:center;padding:20px;font-size:22px;font-weight:bold;">
+                      New Visit Request
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:20px;">
+                      <table width="100%" cellpadding="10" cellspacing="0">
+                        <tr><td><b>Institution</b></td><td>${institution}</td></tr>
+                        <tr><td><b>Name</b></td><td>${name}</td></tr>
+                        <tr><td><b>Reason</b></td><td>${reason}</td></tr>
+                        <tr><td><b>Visit Date</b></td><td>${date}</td></tr>
+                        <tr><td><b>Time Slot</b></td><td>${slot.time}</td></tr>
+                        <tr><td><b>Visitors</b></td><td>${visitors}</td></tr>
+                        <tr><td><b>Email</b></td><td>${email}</td></tr>
+                        <tr><td><b>Phone</b></td><td>${phone}</td></tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        `
+      };
 
-      await resend.emails.send({
-        from: `Visit Parliament <${VERIFIED_EMAIL}>`,
+      // VISITOR EMAIL
+      const visitorMail = {
+        from: `Visit Request System <${VERIFIED_EMAIL}>`,
         to: email,
         subject: "Visit Request Received",
-        html: `<p>Hello ${name}, your booking is confirmed for ${date} at ${slot.time}</p>`,
-      });
+        html: `
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;padding:20px;font-family:Arial;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:2px solid #0b6b3a;border-radius:6px;">
+                  <tr>
+                    <td style="background:#0b6b3a;color:#ffffff;text-align:center;padding:20px;font-size:22px;font-weight:bold;">
+                      Visit Request Received
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:20px;">
+                      <table width="100%" cellpadding="10" cellspacing="0">
+                        <tr><td><b>Name</b></td><td>${name}</td></tr>
+                        <tr><td><b>Institution</b></td><td>${institution}</td></tr>
+                        <tr><td><b>Visit Date</b></td><td>${date}</td></tr>
+                        <tr><td><b>Time Slot</b></td><td>${slot.time}</td></tr>
+                        <tr><td colspan="2">Our team will review your request and contact you.</td></tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        `
+      };
+
+      await resend.emails.send(adminMail);
+      await resend.emails.send(visitorMail);
     }
 
     res.json({ success: true });
