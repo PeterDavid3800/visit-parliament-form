@@ -26,49 +26,74 @@ function VisitForm() {
     const { name, value, type, checked } = e.target;
 
     if (name === "visitors") {
-      if (value > 50) setVisitorWarning("⚠ Maximum 50 visitors allowed per school");
-      else setVisitorWarning("");
+      if (value > 50) {
+        setVisitorWarning("⚠ Maximum 50 visitors allowed per school");
+      } else {
+        setVisitorWarning("");
+      }
     }
 
-    if (type === "checkbox") setFormData({ ...formData, [name]: checked });
-    else setFormData({ ...formData, [name]: value });
+    if (type === "checkbox") {
+      setFormData({ ...formData, [name]: checked });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   /* Fetch slots when date changes */
   useEffect(() => {
     if (!formData.date) return;
+
     const fetchSlots = async () => {
       try {
         const res = await fetch(
           `https://visit-parliament-form.onrender.com/slots?date=${formData.date}`
         );
         const data = await res.json();
+
         setSlots(data);
-        setFormData((prev) => ({ ...prev, slot_id: "" })); // reset selection
+        setFormData((prev) => ({ ...prev, slot_id: "" }));
       } catch (err) {
         console.error(err);
       }
     };
+
     fetchSlots();
   }, [formData.date]);
 
   /* Handle form submit */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.consent) {
-      setStatus("❌ You must agree to the consent for photography/videography.");
+
+    if (!formData.slot_id) {
+      setStatus("❌ Please select a time slot");
       return;
     }
+
+    if (!formData.consent) {
+      setStatus("❌ You must agree to the consent.");
+      return;
+    }
+
     if (formData.visitors > 50) {
-      setStatus("❌ Maximum 50 visitors allowed per school.");
+      setStatus("❌ Maximum 50 visitors allowed.");
       return;
     }
 
     const form = new FormData();
-    const reasonToSend = formData.reason === "Other" ? formData.otherReason : formData.reason;
+    const reasonToSend =
+      formData.reason === "Other"
+        ? formData.otherReason
+        : formData.reason;
+
     Object.keys(formData).forEach((key) => {
-      if (key === "reason") form.append("reason", reasonToSend);
-      else form.append(key, formData[key]);
+      if (key === "reason") {
+        form.append("reason", reasonToSend);
+      } else if (key === "file") {
+        if (formData.file) form.append("file", formData.file);
+      } else {
+        form.append(key, formData[key]);
+      }
     });
 
     try {
@@ -76,9 +101,13 @@ function VisitForm() {
         "https://visit-parliament-form.onrender.com/send-email",
         { method: "POST", body: form }
       );
+
       const data = await res.json();
+
       if (data.success) {
         setStatus("✅ Booking successful!");
+
+        // Reset form
         setFormData({
           institution: "",
           name: "",
@@ -94,8 +123,11 @@ function VisitForm() {
           file: null,
           consent: false,
         });
+
         setSlots([]);
-      } else setStatus(`❌ ${data.message || "Error occurred"}`);
+      } else {
+        setStatus(`❌ ${data.message}`);
+      }
     } catch (err) {
       console.error(err);
       setStatus("❌ Server error. Try again.");
@@ -148,21 +180,28 @@ function VisitForm() {
 
         <input type="date" name="date" min={new Date().toISOString().split("T")[0]} value={formData.date} onChange={handleChange} required />
 
-        {/* Calendar-style slot picker */}
         {formData.date && (
           <div className="slot-grid">
             {slots.length === 0 && <p>No slots available for this date.</p>}
+
             {Array.isArray(slots) &&
               slots.map((slot) => {
                 const bookedCount = Number(slot.booked_count) || 0;
                 const capacity = Number(slot.capacity) || 0;
+
                 return (
                   <button
                     key={slot.id}
                     type="button"
-                    className={`slot-btn ${bookedCount >= capacity ? "full" : ""} ${formData.slot_id == slot.id ? "selected" : ""}`}
+                    className={`slot-btn ${
+                      bookedCount >= capacity ? "full" : ""
+                    } ${
+                      formData.slot_id == slot.id ? "selected" : ""
+                    }`}
                     disabled={bookedCount >= capacity}
-                    onClick={() => setFormData({ ...formData, slot_id: slot.id })}
+                    onClick={() =>
+                      setFormData({ ...formData, slot_id: slot.id })
+                    }
                   >
                     {slot.time} ({bookedCount}/{capacity})
                   </button>
@@ -190,13 +229,6 @@ function VisitForm() {
           <input type="checkbox" name="consent" checked={formData.consent} onChange={handleChange} />
           I consent to photography and videography by Parliament
         </label>
-
-        <p className="canteen-info">
-          Schools wishing to book meals/refreshments may contact: <strong>canteen@parliament.go.ke</strong> or call <strong>+254-XXX-XXXX</strong>
-        </p>
-        <p className="outreach-info">
-          For other inquiries, contact <strong>publiceducation@parliament.go.ke</strong>
-        </p>
 
         <button type="submit">Submit Request</button>
       </form>

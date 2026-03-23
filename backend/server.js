@@ -15,15 +15,46 @@ app.use(cors());
 app.use(express.json());
 
 /* =========================
-   GET AVAILABLE SLOTS
+   GET AVAILABLE SLOTS (FIXED)
 ========================= */
 app.get("/slots", async (req, res) => {
   const { date } = req.query;
+
   try {
-    const result = await pool.query(
-      "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
+    let result = await pool.query(
+      `SELECT * FROM slots 
+       WHERE DATE(date) = $1 
+       ORDER BY time ASC`,
       [date]
     );
+
+    // AUTO-GENERATE if empty
+    if (result.rows.length === 0) {
+      const capacity = 5;
+
+      const times = [
+        "09:00","09:30","10:00","10:30","11:00","11:30",
+        "12:00","12:30","14:30","15:00","15:30","16:00","16:30"
+      ];
+
+      for (let time of times) {
+        await pool.query(
+          `INSERT INTO slots (date, time, capacity, booked_count)
+           VALUES ($1,$2,$3,0)
+           ON CONFLICT DO NOTHING`,
+          [date, time, capacity]
+        );
+      }
+
+      // Fetch again
+      result = await pool.query(
+        `SELECT * FROM slots 
+         WHERE DATE(date) = $1 
+         ORDER BY time ASC`,
+        [date]
+      );
+    }
+
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -32,7 +63,7 @@ app.get("/slots", async (req, res) => {
 });
 
 /* =========================
-   CREATE BOOKING
+   CREATE BOOKING (FIXED)
 ========================= */
 app.post("/send-email", upload.single("file"), async (req, res) => {
   try {
@@ -51,7 +82,7 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
 
     const visitorsCount = Number(visitors);
 
-    // Validate required fields
+    // VALIDATION
     if (!institution || !name || !reason || !date || !visitorsCount || !email || !phone || !slot_id) {
       return res.status(400).json({
         success: false,
@@ -66,21 +97,25 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Validate slot
-    const slotRes = await pool.query("SELECT * FROM slots WHERE id=$1", [slot_id]);
+    // VALIDATE SLOT
+    const slotRes = await pool.query(
+      "SELECT * FROM slots WHERE id=$1",
+      [slot_id]
+    );
+
     if (slotRes.rows.length === 0) {
       return res.status(400).json({ success: false, message: "Invalid slot" });
     }
 
     const slot = slotRes.rows[0];
+
     if (slot.booked_count >= slot.capacity) {
       return res.status(400).json({ success: false, message: "Slot is full" });
     }
 
-    // File handling
     const fileUrl = req.file ? req.file.path : null;
 
-    // Insert booking
+    // INSERT BOOKING
     await pool.query(
       `INSERT INTO bookings
       (institution, name, reason, visit_date, visitors, email, phone, slot_id, institution_type, institution_status, file_url)
@@ -100,83 +135,39 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       ]
     );
 
-    // Update slot count
+    // UPDATE SLOT COUNT
     await pool.query(
       "UPDATE slots SET booked_count = booked_count + 1 WHERE id=$1",
       [slot_id]
     );
 
-    // Send emails
+    // EMAILS
     const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
+
     if (process.env.RECEIVER_EMAIL && VERIFIED_EMAIL) {
-      const adminHTML = `
-        <h2>New Visit Request</h2>
-        <p><b>Institution:</b> ${institution}</p>
-        <p><b>Name:</b> ${name}</p>
-        <p><b>Visitors:</b> ${visitorsCount}</p>
-        <p><b>Date:</b> ${date}</p>
-        <p><b>Time:</b> ${slot.time}</p>
-      `;
-
-      const visitorHTML = `
-        <h2>Visit Request Received</h2>
-        <p>Hello ${name},</p>
-        <p>Your booking is confirmed.</p>
-        <p><b>Date:</b> ${date}</p>
-        <p><b>Time:</b> ${slot.time}</p>
-      `;
-
       await resend.emails.send({
         from: `Visit Parliament <${VERIFIED_EMAIL}>`,
         to: process.env.RECEIVER_EMAIL,
         reply_to: email,
         subject: "New Visit Request",
-        html: adminHTML,
+        html: `<h2>New Visit Request</h2>
+               <p><b>${institution}</b> booked ${visitorsCount} visitors</p>
+               <p>${date} at ${slot.time}</p>`,
       });
 
       await resend.emails.send({
         from: `Visit Parliament <${VERIFIED_EMAIL}>`,
         to: email,
         subject: "Visit Request Received",
-        html: visitorHTML,
+        html: `<p>Hello ${name}, your booking is confirmed for ${date} at ${slot.time}</p>`,
       });
     }
 
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-/* =========================
-   GENERATE SLOTS (SITTING & NON-SITTING)
-========================= */
-app.get("/generate-slots", async (req, res) => {
-  const { date, type } = req.query;
-
-  // Determine capacity
-  const capacity = type === "sitting" ? 4 : 5;
-
-  // Generate all 30-min slots
-  const morningTimes = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30"];
-  const afternoonTimes = ["14:30","15:00","15:30","16:00","16:30","17:00","17:30"];
-  const allTimes = [...morningTimes, ...afternoonTimes];
-
-  try {
-    for (let time of allTimes) {
-      await pool.query(
-        `INSERT INTO slots (date, time, type, capacity)
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT DO NOTHING`,
-        [date, time, type, capacity]
-      );
-    }
-
-    res.send(`Slots generated for ${date} (${type} day)`);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error generating slots");
   }
 });
 
