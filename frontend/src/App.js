@@ -1,4 +1,5 @@
 import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import VisitForm from "./components/VisitForm";
 import AdminDashboard from "./components/AdminDashboard";
 
