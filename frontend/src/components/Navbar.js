@@ -23,9 +23,7 @@ function Navbar() {
           <li><a href="#">About Parliament</a></li>
           <li><a href="#">Visit Parliament</a></li>
           <li><a href="#">Contact</a></li>
-          <li><Routes>
-         <Route path="/admin" element={<AdminDashboard />} />
-</Routes></li>
+
         </ul>
 
       </div>
