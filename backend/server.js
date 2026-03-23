@@ -9,6 +9,8 @@ const multer = require("multer");
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Multer setup
 const upload = multer({ dest: "uploads/" });
 
 app.use(cors());
@@ -25,7 +27,6 @@ app.get("/slots", async (req, res) => {
       "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
       [date]
     );
-
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -37,68 +38,52 @@ app.get("/slots", async (req, res) => {
    CREATE BOOKING
 ========================= */
 app.post("/send-email", upload.single("file"), async (req, res) => {
-  const {
-    institution,
-    name,
-    reason,
-    date,
-    visitors,
-    email,
-    phone,
-    slot_id,
-    institution_type,
-    institution_status
-  } = req.body;
-
-  const file = req.file;
-
-  if (
-    !institution || !name || !reason || !date ||
-    !visitors || !email || !phone || !slot_id
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "All fields are required"
-    });
-  }
-
   try {
-    /* =========================
-       VALIDATE SLOT
-    ========================= */
-    const slotRes = await pool.query(
-      "SELECT * FROM slots WHERE id=$1",
-      [slot_id]
-    );
+    // Extract fields from req.body
+    const {
+      institution,
+      name,
+      reason,
+      date,
+      visitors,
+      email,
+      phone,
+      slot_id,
+      institution_type,
+      institution_status
+    } = req.body;
 
-    if (slotRes.rows.length === 0) {
+    // Validate required fields
+    if (!institution || !name || !reason || !date || !visitors || !email || !phone || !slot_id) {
       return res.status(400).json({
         success: false,
-        message: "Invalid slot"
+        message: "All fields are required",
       });
+    }
+
+    const visitorsCount = Number(visitors);
+    if (isNaN(visitorsCount) || visitorsCount <= 0 || visitorsCount > 50) {
+      return res.status(400).json({
+        success: false,
+        message: "Visitors must be between 1 and 50",
+      });
+    }
+
+    // Validate slot
+    const slotRes = await pool.query("SELECT * FROM slots WHERE id=$1", [slot_id]);
+    if (slotRes.rows.length === 0) {
+      return res.status(400).json({ success: false, message: "Invalid slot" });
     }
 
     const slot = slotRes.rows[0];
-
     if (slot.booked_count >= slot.capacity) {
-      return res.status(400).json({
-        success: false,
-        message: "Slot is full"
-      });
+      return res.status(400).json({ success: false, message: "Slot is full" });
     }
 
-    if (visitors > 50) {
-      return res.status(400).json({
-        success: false,
-        message: "Max 50 participants allowed"
-      });
-    }
+    // Save file if uploaded
+    const fileUrl = req.file ? req.file.path : null;
 
-    const fileUrl = file ? file.path : null;
-
-    /* =========================
-       SAVE BOOKING
-    ========================= */
+    // Insert booking
     await pool.query(
       `INSERT INTO bookings
       (institution, name, reason, visit_date, visitors, email, phone, slot_id, institution_type, institution_status, file_url)
@@ -108,68 +93,62 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
         name,
         reason,
         date,
-        visitors,
+        visitorsCount,
         email,
         phone,
         slot_id,
-        institution_type,
-        institution_status,
+        institution_type || null,
+        institution_status || null,
         fileUrl
       ]
     );
 
-    /* =========================
-       UPDATE SLOT COUNT
-    ========================= */
+    // Update slot count
     await pool.query(
       "UPDATE slots SET booked_count = booked_count + 1 WHERE id=$1",
       [slot_id]
     );
 
-    /* =========================
-       EMAILS
-    ========================= */
+    // Send emails
     const VERIFIED_EMAIL = process.env.VERIFIED_EMAIL;
-
-    const adminHTML = `
-      <h2>New Visit Request</h2>
-      <p><b>Institution:</b> ${institution}</p>
-      <p><b>Name:</b> ${name}</p>
-      <p><b>Visitors:</b> ${visitors}</p>
-      <p><b>Date:</b> ${date}</p>
-      <p><b>Time:</b> ${slot.time}</p>
-    `;
-
-    const visitorHTML = `
-      <h2>Visit Request Received</h2>
-      <p>Hello ${name},</p>
-      <p>Your booking is confirmed.</p>
-      <p><b>Date:</b> ${date}</p>
-      <p><b>Time:</b> ${slot.time}</p>
-    `;
-
     if (process.env.RECEIVER_EMAIL && VERIFIED_EMAIL) {
+      const adminHTML = `
+        <h2>New Visit Request</h2>
+        <p><b>Institution:</b> ${institution}</p>
+        <p><b>Name:</b> ${name}</p>
+        <p><b>Visitors:</b> ${visitorsCount}</p>
+        <p><b>Date:</b> ${date}</p>
+        <p><b>Time:</b> ${slot.time}</p>
+      `;
+
+      const visitorHTML = `
+        <h2>Visit Request Received</h2>
+        <p>Hello ${name},</p>
+        <p>Your booking is confirmed.</p>
+        <p><b>Date:</b> ${date}</p>
+        <p><b>Time:</b> ${slot.time}</p>
+      `;
+
       await resend.emails.send({
         from: `Visit Parliament <${VERIFIED_EMAIL}>`,
         to: process.env.RECEIVER_EMAIL,
         reply_to: email,
         subject: "New Visit Request",
-        html: adminHTML
+        html: adminHTML,
       });
 
       await resend.emails.send({
         from: `Visit Parliament <${VERIFIED_EMAIL}>`,
         to: email,
         subject: "Visit Request Received",
-        html: visitorHTML
+        html: visitorHTML,
       });
     }
 
     res.json({ success: true });
-
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
@@ -178,7 +157,6 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
 ========================= */
 app.get("/generate-slots", async (req, res) => {
   const { date, type } = req.query;
-
   const capacity = type === "sitting" ? 4 : 5;
 
   const times = [
@@ -196,7 +174,6 @@ app.get("/generate-slots", async (req, res) => {
         [date, time, type, capacity]
       );
     }
-
     res.send("Slots generated");
   } catch (err) {
     console.error(err);
@@ -209,12 +186,7 @@ app.get("/generate-slots", async (req, res) => {
 ========================= */
 const buildPath = path.join(__dirname, "../frontend/build");
 app.use(express.static(buildPath));
-
-app.get("*", (req, res) =>
-  res.sendFile(path.join(buildPath, "index.html"))
-);
+app.get("*", (req, res) => res.sendFile(path.join(buildPath, "index.html")));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`Server running on port ${PORT}`)
-);
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
