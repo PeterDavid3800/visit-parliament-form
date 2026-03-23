@@ -139,6 +139,7 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       const adminMail = {
         from: `Visit Request System <${VERIFIED_EMAIL}>`,
         to: process.env.RECEIVER_EMAIL,
+        cc: "visit.nationalassembly@parliament.go.ke",
         replyTo: email,
         subject: "📩 New Visit Request",
         html: `
