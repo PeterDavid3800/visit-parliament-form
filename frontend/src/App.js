@@ -1,17 +1,14 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
 import VisitForm from "./components/VisitForm";
-import AdminDashboard from "./components/AdminDashboard";
 
 function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<VisitForm />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-      </Routes>
-    </Router>
-  );
+return (
+<div>
+<Navbar />
+<VisitForm/>
+</div>
+);
 }
 
 export default App;
