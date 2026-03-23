@@ -9,8 +9,6 @@ const multer = require("multer");
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Multer setup
 const upload = multer({ dest: "uploads/" });
 
 app.use(cors());
@@ -21,7 +19,6 @@ app.use(express.json());
 ========================= */
 app.get("/slots", async (req, res) => {
   const { date } = req.query;
-
   try {
     const result = await pool.query(
       "SELECT * FROM slots WHERE date=$1 ORDER BY time ASC",
@@ -39,7 +36,6 @@ app.get("/slots", async (req, res) => {
 ========================= */
 app.post("/send-email", upload.single("file"), async (req, res) => {
   try {
-    // Extract fields from req.body
     const {
       institution,
       name,
@@ -53,19 +49,20 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       institution_status
     } = req.body;
 
+    const visitorsCount = Number(visitors);
+
     // Validate required fields
-    if (!institution || !name || !reason || !date || !visitors || !email || !phone || !slot_id) {
+    if (!institution || !name || !reason || !date || !visitorsCount || !email || !phone || !slot_id) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
 
-    const visitorsCount = Number(visitors);
-    if (isNaN(visitorsCount) || visitorsCount <= 0 || visitorsCount > 50) {
+    if (visitorsCount > 50) {
       return res.status(400).json({
         success: false,
-        message: "Visitors must be between 1 and 50",
+        message: "Maximum 50 participants allowed",
       });
     }
 
@@ -80,7 +77,7 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
       return res.status(400).json({ success: false, message: "Slot is full" });
     }
 
-    // Save file if uploaded
+    // File handling
     const fileUrl = req.file ? req.file.path : null;
 
     // Insert booking
@@ -153,20 +150,21 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
 });
 
 /* =========================
-   GENERATE SLOTS (RUN ONCE)
+   GENERATE SLOTS (SITTING & NON-SITTING)
 ========================= */
 app.get("/generate-slots", async (req, res) => {
   const { date, type } = req.query;
+
+  // Determine capacity
   const capacity = type === "sitting" ? 4 : 5;
 
-  const times = [
-    "09:00","09:30","10:00","10:30",
-    "11:00","11:30","12:00","12:30",
-    "14:30","15:00","15:30","16:00","16:30","17:00"
-  ];
+  // Generate all 30-min slots
+  const morningTimes = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30"];
+  const afternoonTimes = ["14:30","15:00","15:30","16:00","16:30","17:00","17:30"];
+  const allTimes = [...morningTimes, ...afternoonTimes];
 
   try {
-    for (let time of times) {
+    for (let time of allTimes) {
       await pool.query(
         `INSERT INTO slots (date, time, type, capacity)
          VALUES ($1,$2,$3,$4)
@@ -174,7 +172,8 @@ app.get("/generate-slots", async (req, res) => {
         [date, time, type, capacity]
       );
     }
-    res.send("Slots generated");
+
+    res.send(`Slots generated for ${date} (${type} day)`);
   } catch (err) {
     console.error(err);
     res.status(500).send("Error generating slots");
