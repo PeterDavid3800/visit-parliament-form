@@ -1,5 +1,4 @@
 import React from "react";
-import AdminDashboard from "./AdminDashboard";
 import "../styles/Navbar.css";
 
 function Navbar() {
