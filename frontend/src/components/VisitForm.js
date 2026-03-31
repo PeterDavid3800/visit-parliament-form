@@ -21,7 +21,6 @@ function VisitForm() {
   const [status, setStatus] = useState("");
   const [visitorWarning, setVisitorWarning] = useState("");
 
-  /* Handle input change */
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -40,7 +39,6 @@ function VisitForm() {
     }
   };
 
-  /* Fetch slots when date changes */
   useEffect(() => {
     if (!formData.date) return;
 
@@ -61,7 +59,6 @@ function VisitForm() {
     fetchSlots();
   }, [formData.date]);
 
-  /* Handle form submit */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -107,7 +104,6 @@ function VisitForm() {
       if (data.success) {
         setStatus("✅ Booking successful!");
 
-        // Reset form
         setFormData({
           institution: "",
           name: "",
@@ -149,10 +145,12 @@ function VisitForm() {
         <input type="text" name="name" placeholder="Your Name" value={formData.name} onChange={handleChange} required />
 
         <select name="institution_type" value={formData.institution_type} onChange={handleChange} required>
-          <option value="">Institution Type</option>
-          <option>Private</option>
-          <option>Public</option>
-          <option>Charitable</option>
+          <option value="">School Type</option>
+          <option>National School</option>
+          <option>Extra County School</option>
+          <option>County School</option>
+          <option>Sub County School</option>
+          <option>Private School</option>
         </select>
 
         <select name="institution_status" value={formData.institution_status} onChange={handleChange} required>
@@ -181,33 +179,51 @@ function VisitForm() {
         <input type="date" name="date" min={new Date().toISOString().split("T")[0]} value={formData.date} onChange={handleChange} required />
 
         {formData.date && (
-          <div className="slot-grid">
-            {slots.length === 0 && <p>No slots available for this date.</p>}
-
-            {Array.isArray(slots) &&
-              slots.map((slot) => {
-                const bookedCount = Number(slot.booked_count) || 0;
-                const capacity = Number(slot.capacity) || 0;
+          <table className="slots-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Booked</th>
+                <th>Capacity</th>
+                <th>Status</th>
+                <th>Select</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slots.map((slot) => {
+                const booked = Number(slot.booked_count);
+                const capacity = Number(slot.capacity);
+                const isFull = booked >= capacity;
 
                 return (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    className={`slot-btn ${
-                      bookedCount >= capacity ? "full" : ""
-                    } ${
-                      formData.slot_id == slot.id ? "selected" : ""
-                    }`}
-                    disabled={bookedCount >= capacity}
-                    onClick={() =>
-                      setFormData({ ...formData, slot_id: slot.id })
-                    }
-                  >
-                    {slot.time} ({bookedCount}/{capacity})
-                  </button>
+                  <tr key={slot.id}>
+                    <td>{slot.time}</td>
+                    <td>{booked}</td>
+                    <td>{capacity}</td>
+                    <td>
+                      {isFull ? (
+                        <span style={{ color: "red" }}>Full</span>
+                      ) : (
+                        <span style={{ color: "green" }}>Available</span>
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        type="radio"
+                        name="slot_id"
+                        value={slot.id}
+                        disabled={isFull}
+                        checked={formData.slot_id == slot.id}
+                        onChange={() =>
+                          setFormData({ ...formData, slot_id: slot.id })
+                        }
+                      />
+                    </td>
+                  </tr>
                 );
               })}
-          </div>
+            </tbody>
+          </table>
         )}
 
         <input type="number" name="visitors" placeholder="Number of Visitors" value={formData.visitors} onChange={handleChange} max={50} required />
@@ -223,6 +239,8 @@ function VisitForm() {
           <p>• Only Grade 6 and above allowed</p>
           <p>• Max 50 participants per school</p>
           <p>• Departure within 15 minutes after tour</p>
+          <p>• Visits are strictly for schools only</p>
+          <p>• Entry is FREE</p>
         </div>
 
         <label className="consent">
