@@ -14,9 +14,17 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 
-const isSittingDay = (date) => {
+/* =========================
+   DAY LOGIC
+========================= */
+const getDayType = (date) => {
   const day = new Date(date).getDay();
-  return day === 2 || day === 3 || day === 4;
+
+  if (day === 2) return "tuesday";      // morning only
+  if (day === 3) return "wednesday";    // full day
+  if (day === 4) return "thursday";     // afternoon only
+
+  return "non_sitting";
 };
 
 /* =========================
@@ -32,12 +40,37 @@ app.get("/slots", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      const sitting = isSittingDay(date);
-      const capacity = sitting ? 4 : 5;
+      const type = getDayType(date);
 
-      const times = sitting
-        ? ["09:00","09:30","10:00","10:30","11:00","14:30","15:00","15:30","16:00"]
-        : ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","14:30","15:00","15:30","16:00","16:30"];
+      const isSitting =
+        type === "tuesday" ||
+        type === "wednesday" ||
+        type === "thursday";
+
+      const capacity = isSitting ? 4 : 5;
+
+      let times = [];
+
+      // MORNING: 8:00 → 11:00
+      const morning = ["08:00","08:30","09:00","09:30","10:00","10:30"];
+
+      // AFTERNOON: 14:30 → 17:30
+      const afternoon = ["14:30","15:00","15:30","16:00","16:30","17:00"];
+
+      if (type === "tuesday") {
+        times = morning;
+      } else if (type === "wednesday") {
+        times = [...morning, ...afternoon];
+      } else if (type === "thursday") {
+        times = afternoon;
+      } else {
+        // non-sitting full day
+        times = [
+          ...morning,
+          "11:00","11:30","12:00","12:30",
+          ...afternoon
+        ];
+      }
 
       for (let time of times) {
         await pool.query(
@@ -224,7 +257,6 @@ app.post("/send-email", upload.single("file"), async (req, res) => {
     </table>
   `
 };
-
       await resend.emails.send(adminMail);
       await resend.emails.send(visitorMail);
     }

@@ -240,6 +240,8 @@ function VisitForm() {
           <p>• Departure within 15 minutes after tour</p>
           <p>• Visits are strictly for schools only</p>
           <p>• Entry is FREE</p>
+          <p>• Schools that wish to book and pay for meals and refreshments at the Bunge canteen may get in touch through the following number or email for booking and quote(Contact Info)</p>
+          <p>• Open for us an outreach email for the purpose of booking like publiceducation@parliament.go.ke </p>
         </div>
 
         <label className="consent">
