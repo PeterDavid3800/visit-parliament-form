@@ -162,13 +162,12 @@ function VisitForm() {
         <select name="reason" value={formData.reason} onChange={handleChange} required>
           <option value="">Reason for Visit</option>
           <option>Educational Tour</option>
-          <option>Official Meeting</option>
+          <option>School / University Trip</option>
           <option>Research</option>
           <option>Parliamentary Proceedings Observation</option>
           <option>Media Coverage</option>
           <option>Internship or Academic Program</option>
           <option>Government Delegation Visit</option>
-          <option>School / University Trip</option>
           <option>Other</option>
         </select>
 
